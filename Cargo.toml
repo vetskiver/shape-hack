@@ -1,0 +1,53 @@
+[package]
+name    = "whoop_scraper"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# Define our own feature for NSM support instead of using target_env
+nsm = [] 
+
+[dependencies]
+# Core dependencies
+anyhow                        = "1.0"
+dotenv                        = "0.15.0"
+env_logger                    = "0.9.0"
+log                           = "0.4.17"
+headless_chrome               = "1.0.17"
+chrono                        = { version = "0.4", features = ["serde"] }
+tokio                         = { version = "1.17.0", features = ["full"] }
+structopt                     = "0.3"
+which                         = "4.4"
+actix-rt                      = "2.8"
+actix-web                     = "4.10.2"    # no "json" feature; default features include JSON support
+uuid                          = { version = "1.3", features = ["v4", "serde"] }
+base64                        = "0.21.7"    # Updated to latest version
+libc                          = "0.2"
+rustix                        = "0.38.31"   # For AsRawFd trait
+
+# RSA and encryption
+rsa                           = { version = "0.9.2", features = ["sha2"] }  # Added sha2 feature
+rand                          = "0.8.5"
+
+# Serde / JSON support
+serde                         = { version = "1.0", features = ["derive"] }
+serde_json                    = "1.0"
+
+# Force a modern time crate to avoid Rust 1.80 Box<_> bug in time 0.3.25
+time                          = "0.3.41"
+
+# Nitro Secure Module API
+aws-nitro-enclaves-nsm-api    = "0.4.0"
+
+# Added once_cell dependency
+once_cell = "1.21.0"
+
+# Added zip and walkdir dependencies
+zip = "0.6"
+walkdir = "2.4"
+
+# Added csv dependency
+csv = "1.3"
+
+# Added actix-cors dependency
+actix-cors = "0.6"
