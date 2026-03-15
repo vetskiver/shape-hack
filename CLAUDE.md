@@ -4,18 +4,86 @@
 
 This repository is being built for the **Encode Club Shape Rotator Virtual Hackathon**.
 
-The hackathon is built around IC3 research papers. The specific paper this project implements is:
+The hackathon is built around IC3 research papers. The specific paper this project implements iss
 
 **Props: Verifiable Machine-Learning Inference over Private Data**
 Juels and Koushanfar, Cornell Tech / UCSD, 2024
 https://arxiv.org/pdf/2410.20522
 
-The project is the **Anonymous Expert Oracle** — the first cryptographic primitive for verified anonymous speech. It enables experts, whistleblowers, and sources to prove their credentials or employment without revealing their identity, using a Props pipeline built on AWS Nitro Enclaves.
-
-The existing codebase (props_training) is a working Props implementation that pulls Whoop fitness data inside a Nitro Enclave and produces a real attestation. This project adapts that infrastructure for the anonymous expert use case.
+The project is the **Anonymous Expert Oracle** — the first cryptographic primitive for verified anonymous speech. It enables experts, whistleblowers, and sources to prove their credentials or employment without revealing their identity, using a Props pipeline built on Intel TDX via Phala Cloud.
 
 **Hackathon Track:** Trusted Execution Environments (TEEs)
 **Bonus Track:** Cohort that Builds Itself — framed as a tool for the hackathon cohort itself
+
+---
+
+## Infrastructure — How This Actually Gets Built and Deployed
+
+This is the most important section to understand before writing any code.
+
+### The TEE Platform — Phala Cloud
+
+We are using **Phala Cloud** (cloud.phala.com) as our TEE deployment platform. Phala Cloud runs on dstack which runs on Intel TDX — this is directly cited in the Props paper (section 3.1: "TEEs such as Intel SGX / TDX"). It is more modern and production-grade than AWS Nitro Enclaves.
+
+Why Phala Cloud instead of raw AWS Nitro:
+- Deploy any Docker container to a TEE using just a `docker-compose.yaml`
+- Real TDX attestation built in — no manual enclave tooling
+- Phala is providing free GPU credits to all hackathon teams
+- Gets a working TEE in minutes instead of days of infrastructure setup
+- dstack is the shared infrastructure layer specified by this hackathon track
+
+Phala Cloud account: sign up at cloud.phala.com and request hackathon credits in the Discord.
+
+### The ML Model — Small LLM for Credential Extraction
+
+We are using a **small LLM** (Llama 3.2 3B or Phi-3 mini) running inside the TEE for credential extraction, not a simple regex classifier. This is important for two reasons:
+
+1. It makes L3 (pinned model) genuinely impressive — a real LLM with a real model hash in the attestation, not a trivial script
+2. The adversarial defense story becomes stronger — an LLM inside a TEE on oracle-authenticated data cannot be prompt-injected from outside
+
+The LLM does one specific task only:
+```
+Input:  raw credential record fetched from licensing registry
+Task:   extract specialty, years active, jurisdiction, license standing
+        flag anomalies, produce one-sentence expert summary
+Output: structured JSON with credential facts
+```
+
+This is a simple extraction task. A 3B parameter model handles it in under a second on a GPU instance.
+
+### The Oracle Pattern — Chromium Inside TEE
+
+The props_training repo (github.com/danivilardell/props_training) shows the exact pattern for running Chromium inside a TEE to authenticate against a web portal. We adapt this pattern — the browser logs into the NY State medical board registry using the user's credentials, fetches the credential record, and passes it to the LLM. The key insight from the Props paper is that this works with any TLS endpoint with zero infrastructure changes on the source side.
+
+### Reference Repositories
+
+**props_training** (github.com/danivilardell/props_training)
+- Use for: Chromium-in-TEE oracle pattern, credential fetching logic, attestation output format
+- Do not use for: deployment infrastructure (use Phala Cloud instead)
+
+**dstack** (github.com/Dstack-TEE/dstack)
+- What it is: the open source TEE infrastructure layer that Phala Cloud runs on
+- Use for: understanding attestation mechanics, docker-compose deployment pattern
+- You do not interact with this directly — Phala Cloud abstracts it
+
+**private-ml-sdk** (github.com/nearai/private-ml-sdk)
+- What it is: toolkit for running LLMs on GPU TEEs using NVIDIA H100/H200
+- Use for: running the small LLM inside the TEE on Phala's GPU instance
+- Install via: `pip install dstack-sdk` inside the container
+
+### The Full Stack
+
+```
+Python FastAPI app
+  ├── Oracle layer: Chromium fetches credentials from NY medical board (props_training pattern)
+  ├── LLM layer:    Small LLM extracts credential facts (Llama 3.2 3B via dstack-sdk)
+  ├── Redaction:    User-controlled filter strips identity fields
+  └── Attestation:  Signed certificate output with model hash
+
+Deployed via docker-compose.yaml → Phala Cloud → Intel TDX enclave → real attestation
+
+Frontend: HTML/JS (props_demo.html) connects to FastAPI endpoints
+```
 
 ---
 
@@ -215,17 +283,19 @@ Before writing any code:
 
 ## Coding Guidelines
 
-**Preferred languages:**
-- Python for ML classifier and data parsing
-- Rust for enclave-side logic (existing codebase is Rust)
-- TypeScript for frontend and verifier webpage
+**Primary stack:**
+- Python + FastAPI for the backend service
+- dstack-sdk for attestation and LLM access inside the enclave
+- HTML/JS for the frontend (props_demo.html is the reference)
+- docker-compose.yaml for Phala Cloud deployment
 
 **Rules:**
 - Keep implementations minimal and readable
 - Every function that implements a Props layer should have a comment referencing the paper section
-- Separate oracle logic, TEE computation logic, and product interface logic into distinct modules
+- Separate oracle logic, LLM inference logic, redaction logic, and API endpoints into distinct modules
 - No unnecessary abstractions — if something can be a simple function, it should be a simple function
 - The attestation output schema is the contract between the TEE and the outside world — define it clearly and do not change it without reason
+- Default to Python for everything — only use other languages if absolutely forced to by existing code
 
 **Example comment style:**
 ```python
@@ -247,46 +317,53 @@ def apply_redaction_filter(raw_credential, disclosed_fields):
 ## Architecture
 
 ```
-Client Browser
+User Browser
     │
-    │  RSA-encrypted credentials (client-side encryption)
+    │  RSA-encrypted credentials (client-side JS encryption)
     ▼
-EC2 Host (socat proxy)
+FastAPI endpoint (running inside Phala Cloud TDX enclave)
     │
-    │  VSOCK
+    ├── Oracle Layer (Props L1)
+    │   Chromium authenticates against NY medical board TLS endpoint
+    │   Raw credential record fetched (name, license, specialty, years, standing)
+    │
+    ├── LLM Layer (Props L2 + L3)
+    │   Llama 3.2 3B / Phi-3 mini runs inside enclave
+    │   Extracts credential facts, flags anomalies, produces expert summary
+    │   Model hash is part of the attestation — pinned model
+    │
+    ├── Redaction Layer (Props L4)
+    │   User-selected fields only exit the enclave
+    │   Identity fields (name, license number, address) stripped
+    │   filter f(X) = X' applied as per section 2.4
+    │
+    └── Attestation Output (Props L2)
+        Phala Cloud / dstack produces signed TDX attestation
+        Certificate JSON: { credential, model_hash, enclave_measurement, timestamp, signature }
+    │
     ▼
-┌─────────────────────────────────────────────────────┐
-│              AWS Nitro Enclave                       │
-│                                                      │
-│  ┌─────────────────┐    ┌──────────────────────┐    │
-│  │  Oracle Layer   │    │   TEE Computation    │    │
-│  │  (Props L1)     │───▶│   (Props L2, L3, L4) │    │
-│  │                 │    │                      │    │
-│  │  Chrome browser │    │  Credential          │    │
-│  │  authenticates  │    │  extraction model    │    │
-│  │  against NY     │    │                      │    │
-│  │  medical board  │    │  Identity stripped   │    │
-│  │  TLS endpoint   │    │  Filter applied      │    │
-│  └─────────────────┘    └──────────┬───────────┘    │
-│                                    │                 │
-│                         Attestation│document         │
-│                         (signed by │enclave key)     │
-└────────────────────────────────────┼─────────────────┘
-                                     │
-                                     ▼
-                          Signed Certificate JSON
-                          {
-                            credential: { specialty, years, standing },
-                            enclave_measurement: "...",
-                            timestamp: "...",
-                            signature: "..."
-                          }
-                                     │
-                                     ▼
-                          Expert attaches to publication
-                                     │
-                                     ▼
-                          Reader verifies on verifier webpage
+Signed Certificate JSON returned to browser
+    │
+    ▼
+Expert attaches certificate link to published article
+    │
+    ▼
+Reader visits props.io/verify/:id — signature checked, credential facts displayed
+```
+
+### Deployment
+
+```yaml
+# docker-compose.yaml — this is what gets deployed to Phala Cloud
+services:
+  props-oracle:
+    image: your-image
+    environment:
+      - MODEL=llama3.2:3b
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock  # dstack attestation socket
+    ports:
+      - "8080:8080"
 ```
 
 ---
@@ -295,14 +372,15 @@ EC2 Host (socat proxy)
 
 **In scope for the 6-day build:**
 
-- Oracle hitting NY State medical board registry (one endpoint, one profession)
-- Credential extraction classifier (four fields: specialty, years active, jurisdiction, standing)
-- Identity redaction inside enclave
-- User-controlled field selection (disclose subset of extracted fields)
-- Signed attestation certificate (JSON with enclave measurement + signature)
-- Clean frontend: credential submission → certificate display
-- Verifier webpage: paste certificate → verify signature → display credential facts
-- Live adversarial demo: three rejection scenarios shown explicitly
+- Phala Cloud account set up with GPU instance running
+- Oracle: Chromium fetches credentials from NY medical board inside TEE (adapted from props_training)
+- LLM extraction: Llama 3.2 3B or Phi-3 mini extracts four credential fields inside TEE
+- Redaction filter: user-controlled field selection, identity stripped before output
+- Attestation: real TDX signed certificate via dstack-sdk with model hash included
+- FastAPI backend: clean endpoints matching the five-screen frontend
+- Frontend: props_demo.html adapted to connect to real backend
+- Verifier: signature check against enclave public key, displays credential facts
+- Adversarial demo: three rejection scenarios shown explicitly in demo
 
 **Out of scope — mention in pitch only:**
 
