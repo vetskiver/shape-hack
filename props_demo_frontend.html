@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Props — Anonymous Expert Oracle Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --border2: #333333;
+    --text: #f0f0f0;
+    --muted: #888888;
+    --faint: #444444;
+    --green: #00c896;
+    --green-dim: #003d2d;
+    --green-mid: #00a07a;
+    --red: #ff4444;
+    --red-dim: #2d0000;
+    --blue: #4488ff;
+    --blue-dim: #0a1a3d;
+    --amber: #ffaa00;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Sora', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+  }
+  .nav-logo {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-logo span {
+    color: var(--green);
+  }
+  .nav-tabs {
+    display: flex;
+    gap: 2px;
+  }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--text); background: var(--surface2); }
+  .tab .layer-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    background: var(--green-dim);
+    color: var(--green);
+  }
+  .nav-info {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* SCREENS */
+  .screen { display: none; padding: 2.5rem 2rem; max-width: 860px; margin: 0 auto; }
+  .screen.active { display: block; }
+
+  /* LAYER PILLS */
+  .layer-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .layer-pill {
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+  .layer-pill.on { background: var(--green-dim); color: var(--green); border-color: var(--green-mid); }
+  .layer-pill.off { background: var(--surface2); color: var(--faint); border-color: var(--border); }
+  .layer-label { font-size: 11px; color: var(--muted); }
+
+  /* SCREEN HEADER */
+  .screen-header { margin-bottom: 2rem; }
+  .screen-num {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  .screen-title { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 0.5rem; }
+  .screen-sub { font-size: 14px; color: var(--muted); max-width: 560px; line-height: 1.6; }
+
+  /* BROWSER FRAME */
+  .browser {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .browser-bar {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .d1 { background: #ff5f57; }
+  .d2 { background: #febc2e; }
+  .d3 { background: #28c840; }
+  .url-bar {
+    flex: 1;
+    margin-left: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .url-lock { color: var(--green); font-size: 10px; }
+  .page-content { padding: 2rem; }
+
+  /* FORM ELEMENTS */
+  .form-group { margin-bottom: 1.25rem; }
+  .form-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .form-label .hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--green);
+    background: var(--green-dim);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .form-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    outline: none;
+  }
+  .form-input:focus { border-color: var(--green); }
+  .form-input.locked { color: var(--muted); border-color: var(--border); }
+
+  /* TOGGLE ROW */
+  .toggle-section-title {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+    margin-top: 1.5rem;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-info {}
+  .toggle-name { font-size: 13px; color: var(--text); }
+  .toggle-example { font-size: 11px; color: var(--muted); margin-top: 1px; font-family: var(--mono); }
+  .toggle {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--green); justify-content: flex-end; }
+  .toggle.off { background: var(--faint); justify-content: flex-start; }
+  .toggle-thumb { width: 16px; height: 16px; border-radius: 50%; background: white; }
+
+  /* BUTTONS */
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--green);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    margin-top: 1.5rem;
+  }
+  .btn-secondary {
+    padding: 10px 16px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--sans);
+  }
+  .encrypt-note {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 8px;
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .encrypt-note .dot-green { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+
+  /* CERTIFICATE */
+  .cert-card {
+    background: var(--surface2);
+    border: 1px solid var(--green-mid);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .cert-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .cert-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--green-dim);
+    border: 1px solid var(--green-mid);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .cert-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .cert-subtitle { font-size: 11px; color: var(--green); font-family: var(--mono); margin-top: 2px; }
+  .cert-field {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+  }
+  .cert-field:last-child { border-bottom: none; }
+  .cert-key { font-size: 11px; color: var(--muted); min-width: 120px; }
+  .cert-val { font-size: 12px; color: var(--text); text-align: right; font-family: var(--mono); }
+  .cert-val.redacted {
+    color: var(--faint);
+    text-decoration: line-through;
+    text-decoration-color: var(--red);
+  }
+  .cert-val.revealed { color: var(--green); }
+  .sig-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    margin-top: 1rem;
+  }
+  .sig-label { font-size: 9px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; margin-bottom: 4px; }
+  .sig-val { font-size: 10px; color: var(--faint); font-family: var(--mono); word-break: break-all; line-height: 1.5; }
+
+  /* ARTICLE */
+  .article-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+  .article-body-section { padding: 1.5rem; }
+  .article-category {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.75rem;
+  }
+  .article-title { font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 1rem; letter-spacing: -0.3px; }
+  .article-byline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .badge-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--green-dim);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--green-mid);
+    font-family: var(--mono);
+  }
+  .article-date { font-size: 11px; color: var(--muted); }
+  .article-text { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 1.25rem; }
+  .proof-bar {
+    background: var(--green-dim);
+    border-top: 1px solid var(--green-mid);
+    padding: 12px 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .proof-text { font-size: 11px; color: var(--green); }
+  .proof-text strong { font-weight: 600; display: block; margin-bottom: 1px; }
+  .proof-link {
+    font-size: 11px;
+    color: var(--green);
+    font-family: var(--mono);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  /* VERIFIER */
+  .verify-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--green-dim);
+    border: 1px solid var(--green-mid);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .verify-icon { font-size: 28px; }
+  .verify-title { font-size: 16px; font-weight: 600; color: var(--green); }
+  .verify-sub { font-size: 11px; color: var(--green-mid); font-family: var(--mono); margin-top: 2px; }
+
+  /* REJECTION */
+  .reject-card {
+    background: var(--red-dim);
+    border: 1px solid #660000;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .reject-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #660000;
+    color: var(--red);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: var(--mono);
+  }
+  .reject-title { font-size: 13px; font-weight: 600; color: #ff8888; margin-bottom: 3px; }
+  .reject-reason { font-size: 11px; color: #cc6666; line-height: 1.5; font-family: var(--mono); }
+  .reject-tag {
+    display: inline-block;
+    font-size: 9px;
+    font-family: var(--mono);
+    background: #660000;
+    color: var(--red);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-bottom: 4px;
+  }
+  .arch-note {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+  }
+  .arch-note-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .arch-note-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* INSIGHT BOX */
+  .insight {
+    background: var(--surface2);
+    border-left: 3px solid var(--green);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.25rem;
+    margin-top: 1.5rem;
+  }
+  .insight-label { font-size: 9px; font-family: var(--mono); color: var(--green); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .insight-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* SECTION TAG */
+  .section-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+  }
+
+  /* TWO COL */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* PROGRESS */
+  .progress-bar { display: flex; align-items: center; gap: 0; margin-bottom: 2rem; }
+  .progress-step {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--faint);
+    border-bottom: 2px solid var(--border);
+    cursor: pointer;
+  }
+  .progress-step.done { color: var(--green); border-color: var(--green); }
+  .progress-step.current { color: var(--text); border-color: var(--text); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">⬡ <span>Props</span> — Anonymous Expert Oracle</div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="showScreen(0)" id="tab0">
+      <span>01 Verify</span>
+      <span class="layer-badge">L1 L4</span>
+    </button>
+    <button class="tab" onclick="showScreen(1)" id="tab1">
+      <span>02 Certificate</span>
+      <span class="layer-badge">L2 L3 L4</span>
+    </button>
+    <button class="tab" onclick="showScreen(2)" id="tab2">
+      <span>03 Published</span>
+      <span class="layer-badge">L2 L3</span>
+    </button>
+    <button class="tab" onclick="showScreen(3)" id="tab3">
+      <span>04 Verifier</span>
+      <span class="layer-badge">L2 L3</span>
+    </button>
+    <button class="tab" onclick="showScreen(4)" id="tab4">
+      <span>05 Adversarial</span>
+      <span class="layer-badge">L5</span>
+    </button>
+  </div>
+  <div class="nav-info">props_training · Nitro Enclave</div>
+</nav>
+
+<!-- SCREEN 1 — VERIFY CREDENTIAL -->
+<div class="screen active" id="screen0">
+  <div class="screen-header">
+    <div class="screen-num">Screen 01 — Expert portal</div>
+    <div class="screen-title">Prove your expertise</div>
+    <div class="screen-sub">Your credentials are verified inside a hardware-isolated enclave. Your identity never leaves your device.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers active:</span>
+    <span class="layer-pill on">L1 — Oracle: authenticated TLS fetch from NY medical board</span>
+    <span class="layer-pill on">L4 — Data redaction: user controls filter f(X) = X'</span>
+    <span class="layer-pill off">L2 — TEE: runs after submission</span>
+    <span class="layer-pill off">L3 — Pinned model: runs after submission</span>
+    <span class="layer-pill off">L5 — Adversarial defense: shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> props.io/verify</div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 3.1 oracle + section 2.4 redaction</div>
+
+      <div class="form-group">
+        <div class="form-label">Registry <span class="hint">L1 — authoritative TLS source</span></div>
+        <input class="form-input locked" value="NY State Medical Board — nysed.gov/op" readonly>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Username</div>
+        <input class="form-input" value="dr.chen@hospital.org" placeholder="Your registry login">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Password <span class="hint">encrypted client-side before submission</span></div>
+        <input class="form-input" type="password" value="••••••••••••">
+      </div>
+
+      <div class="toggle-section-title">Choose what to disclose — section 2.4 filter f(X) = X'</div>
+
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">Specialty</div>
+          <div class="toggle-example">→ "board-certified cardiologist"</div>
+        </div>
+        <div class="toggle on"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">Years active</div>
+          <div class="toggle-example">→ "17 years practice"</div>
+        </div>
+        <div class="toggle on"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">Jurisdiction</div>
+          <div class="toggle-example">→ "New York State" — I prefer to omit this</div>
+        </div>
+        <div class="toggle off"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">License standing</div>
+          <div class="toggle-example">→ "in good standing"</div>
+        </div>
+        <div class="toggle on"><div class="toggle-thumb"></div></div>
+      </div>
+
+      <button class="btn-primary" onclick="showScreen(1)">Generate anonymous certificate →</button>
+      <div class="encrypt-note"><span class="dot-green"></span> RSA encrypted in browser · enters Nitro Enclave · never stored · identity unrecoverable</div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L1 — Oracle layer (section 3.1)</div>
+    <div class="insight-text">The TEE reaches out to the licensing board's TLS endpoint using the user's credentials. The board never knows Props touched their registry. Data provenance is cryptographically established — it came from the authoritative source, not from a document the user could have fabricated.</div>
+  </div>
+</div>
+
+<!-- SCREEN 2 — CERTIFICATE OUTPUT -->
+<div class="screen" id="screen1">
+  <div class="screen-header">
+    <div class="screen-num">Screen 02 — Certificate output</div>
+    <div class="screen-title">Your certificate is ready</div>
+    <div class="screen-sub">Identity stripped inside the enclave. The crossed fields were never disclosed. Attach this certificate to anything you publish.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-pill on">L2 — TEE: private computation inside Nitro Enclave</span>
+    <span class="layer-pill on">L3 — Pinned model: credential classifier v1.0, version attested</span>
+    <span class="layer-pill on">L4 — Data redaction: identity stripped, filter applied</span>
+    <span class="layer-pill off">L1 — completed in screen 1</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> props.io/certificate/a3f9c2d1e8b7</div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 2.4 data filter + section 3.2 pinned model + TEE attestation</div>
+
+      <div class="cert-card">
+        <div class="cert-header">
+          <div class="cert-icon">✦</div>
+          <div>
+            <div class="cert-title">Verified anonymous credential</div>
+            <div class="cert-subtitle">AWS Nitro Enclave · credential-classifier-v1.0 · Props 1.0</div>
+          </div>
+        </div>
+
+        <div class="cert-field">
+          <div class="cert-key">Full name</div>
+          <div class="cert-val redacted">Dr Sarah Chen — STRIPPED</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">License number</div>
+          <div class="cert-val redacted">NY-MD-2847193 — STRIPPED</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Home address</div>
+          <div class="cert-val redacted">84 Park Ave, NY — STRIPPED</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Jurisdiction</div>
+          <div class="cert-val redacted">New York State — USER WITHHELD</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Specialty</div>
+          <div class="cert-val revealed">Board-certified cardiologist ✓</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Years active</div>
+          <div class="cert-val revealed">17 years ✓</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">License standing</div>
+          <div class="cert-val revealed">In good standing ✓</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Identity</div>
+          <div class="cert-val" style="color: var(--muted);">Not disclosed · cannot be recovered</div>
+        </div>
+
+        <div class="sig-block">
+          <div class="sig-label">Enclave attestation · section 3.1</div>
+          <div class="sig-val">
+            measurement: 4f8a2b9c1d7e3a6f2b8c4d9e1a5f7b3c2d8e4a9f1b6c3d7e2a8f4b1c9d5e3a7<br>
+            signature: a3f9c2d1e8b74f6a19c2d8e3b7f4a1c9d2e5b8f3a6c1d4e7b2a9f5c8d3e6b1a4<br>
+            model: credential-classifier-v1.0 · timestamp: 2026-03-15T14:32:07Z
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <button class="btn-secondary">Copy certificate link</button>
+        <button class="btn-secondary">Download JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L4 — Data redaction (section 2.4)</div>
+    <div class="insight-text">The filter f takes the full authenticated record X and produces X'. The crossed fields were processed inside the enclave and discarded. They are unrecoverable. Nobody — not the platform operator, not AWS, not a court subpoena — can extract what the filter stripped.</div>
+  </div>
+</div>
+
+<!-- SCREEN 3 — PUBLISHED ARTICLE -->
+<div class="screen" id="screen2">
+  <div class="screen-header">
+    <div class="screen-num">Screen 03 — Published article</div>
+    <div class="screen-title">Sarah just spoke</div>
+    <div class="screen-sub">The article is live. The credential is attached. Her identity is nowhere. She still has her job.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers visible:</span>
+    <span class="layer-pill on">L2 — TEE: attestation attached to publication</span>
+    <span class="layer-pill on">L3 — Pinned model: verifiable credential provenance</span>
+    <span class="layer-pill off">L1 — completed in screen 1</span>
+    <span class="layer-pill off">L4 — completed in screen 2</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> medicalpulse.org/articles/blood-thinner-dosing-risk</div>
+    </div>
+    <div class="page-content">
+      <div class="article-card">
+        <div class="article-body-section">
+          <div class="article-category">Cardiology · Drug safety · March 15, 2026</div>
+          <div class="article-title">This blood thinner is being prescribed at 3x the safe dose for elderly patients. I have the data.</div>
+          <div class="article-byline">
+            <span class="badge-verified">✦ Verified cardiologist · 17 years · Props certified</span>
+            <span class="article-date">Anonymous · identity cryptographically protected</span>
+          </div>
+          <div class="article-text">
+            Over the past 12 months I have documented 47 cases at my institution where patients over 70 were prescribed apixaban at doses exceeding published safety thresholds by a factor of three. Four of these patients died from intracranial hemorrhage within 90 days of the elevated prescription. I raised this through internal channels in Q2 2025. No action was taken.
+            <br><br>
+            The data I am publishing here represents a systemic failure that has been silenced by institutional legal pressure. I am publishing anonymously because I have a family and I cannot afford to lose my career. But I also cannot watch more patients die.
+          </div>
+        </div>
+        <div class="proof-bar">
+          <div class="proof-text">
+            <strong>Author credential verified by Props</strong>
+            Board-certified cardiologist · 17 years active practice · License in good standing
+          </div>
+          <div class="proof-link" onclick="showScreen(3)">Verify certificate →</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">The moment that matters</div>
+    <div class="insight-text">A serious medical claim. A verified expert. An identity that cannot be recovered. Four months ago this information was trapped inside an institution. Today it is public, credible, and safe. The surgeon spoke. The patients have a warning.</div>
+  </div>
+</div>
+
+<!-- SCREEN 4 — VERIFIER -->
+<div class="screen" id="screen3">
+  <div class="screen-header">
+    <div class="screen-num">Screen 04 — Public verifier</div>
+    <div class="screen-title">Anyone can check this</div>
+    <div class="screen-sub">A reader, an editor, a regulator clicks "Verify" on the article. This is what they see. No special tools required.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers verified:</span>
+    <span class="layer-pill on">L2 — TEE: enclave measurement confirmed, signature valid</span>
+    <span class="layer-pill on">L3 — Pinned model: exact model version verifiable by anyone</span>
+    <span class="layer-pill off">L1 — completed at issuance</span>
+    <span class="layer-pill off">L4 — completed at issuance</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> props.io/verify/a3f9c2d1e8b74f6a</div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 3.2 pinned model + TEE attestation verification</div>
+
+      <div class="verify-status">
+        <div class="verify-icon">✓</div>
+        <div>
+          <div class="verify-title">Certificate valid</div>
+          <div class="verify-sub">Signature verified · Enclave measurement confirmed · Issued 2026-03-15T14:32:07Z</div>
+        </div>
+      </div>
+
+      <div class="cert-card">
+        <div class="cert-field">
+          <div class="cert-key">Specialty</div>
+          <div class="cert-val revealed">Board-certified cardiologist</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Years active</div>
+          <div class="cert-val revealed">17 years</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">License standing</div>
+          <div class="cert-val revealed">In good standing</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Identity</div>
+          <div class="cert-val" style="color: var(--muted); font-family: var(--sans);">Not disclosed · <strong style="color: var(--red)">cannot be recovered by anyone</strong></div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Data source</div>
+          <div class="cert-val">NY State Medical Board (nysed.gov)</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Model used</div>
+          <div class="cert-val">credential-classifier-v1.0</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Enclave type</div>
+          <div class="cert-val">AWS Nitro Enclave</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-key">Enclave measurement</div>
+          <div class="cert-val" style="font-size:10px;">4f8a2b9c1d7e3a6f...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L3 — Pinned model (section 3.2)</div>
+    <div class="insight-text">The model version, enclave measurement, and data source are all part of the certificate. Any verifier can confirm exactly what logic produced this output. The model cannot be swapped silently between issuances. This is the paper's pinned model property made publicly auditable.</div>
+  </div>
+</div>
+
+<!-- SCREEN 5 — ADVERSARIAL -->
+<div class="screen" id="screen4">
+  <div class="screen-header">
+    <div class="screen-num">Screen 05 — Adversarial defense</div>
+    <div class="screen-title">Three attacks. All failed.</div>
+    <div class="screen-sub">Not because of a filter we added. Because of the architecture itself. This is section 2.3 of the Props paper made visible.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-pill on">L5 — Adversarial defense: authenticated inputs prevent manipulation</span>
+    <span class="layer-pill off">L1 — oracle pinning defeats fake registries</span>
+    <span class="layer-pill off">L2 — TEE tamper detection defeats interception</span>
+    <span class="layer-pill off">L3 — pinned model defeats model substitution</span>
+    <span class="layer-pill off">L4 — enclave-enforced filter defeats data injection</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> props.io/verify — fraud attempt log</div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 2.3 constraining adversarial inputs</div>
+
+      <div class="reject-card">
+        <div class="reject-num">1</div>
+        <div>
+          <div class="reject-tag">FORGED DOCUMENT</div>
+          <div class="reject-title">Attempt: forged medical license PDF submitted directly</div>
+          <div class="reject-reason">
+            REJECTED — data not oracle-authenticated.<br>
+            This credential was submitted directly to the attestation endpoint. It was not fetched from nysed.gov through an authenticated TLS session inside the enclave. The pipeline requires all data to enter through the oracle layer. No certificate issued.
+          </div>
+        </div>
+      </div>
+
+      <div class="reject-card">
+        <div class="reject-num">2</div>
+        <div>
+          <div class="reject-tag">FAKE REGISTRY</div>
+          <div class="reject-title">Attempt: fake medical board website with real TLS certificate</div>
+          <div class="reject-reason">
+            REJECTED — endpoint fingerprint mismatch.<br>
+            The oracle is pinned to the certificate fingerprint of the real NY State Medical Board (nysed.gov). The attacker's server presented a valid TLS certificate but from a different authority. Fingerprints did not match. Oracle refused the connection. No certificate issued.
+          </div>
+        </div>
+      </div>
+
+      <div class="reject-card">
+        <div class="reject-num">3</div>
+        <div>
+          <div class="reject-tag">DATA INTERCEPTION</div>
+          <div class="reject-title">Attempt: real credential intercepted and modified in transit</div>
+          <div class="reject-reason">
+            REJECTED — enclave tamper detection triggered.<br>
+            The attacker had a real medical license (general practitioner) and intercepted the data stream between the oracle and the enclave to change the specialty field to "cardiologist." The enclave computed a hash of the incoming data and compared it against the oracle-attested hash. They did not match. Certificate refused.
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-note">
+        <div class="arch-note-title">Why this is architectural, not a filter</div>
+        <div class="arch-note-text">
+          A valid Props certificate is a cryptographic proof that data arrived from the real authoritative source, unmodified, processed inside hardware that nobody can tamper with. That proof cannot be faked without breaking the enclave or compromising the authoritative source itself. There is no configuration to disable, no exception to request, no edge case to exploit.
+          <br><br>
+          This is the paper's section 2.3 adversarial input constraint implemented as the core security property of the system.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">All five Props layers — summary</div>
+    <div class="insight-text">
+      L1 — oracle authenticates against real TLS source (screen 1) ·
+      L2 — TEE runs private computation, enclave measurement attested (screen 2, 4) ·
+      L3 — pinned model version in attestation, auditable by anyone (screen 2, 4) ·
+      L4 — user-controlled filter strips identity inside enclave (screen 1, 2) ·
+      L5 — authenticated inputs defeat all three fraud attempts (this screen)
+    </div>
+  </div>
+</div>
+
+<script>
+  function showScreen(n) {
+    document.querySelectorAll('.screen').forEach((s,i) => {
+      s.classList.toggle('active', i === n);
+    });
+    document.querySelectorAll('.tab').forEach((t,i) => {
+      t.classList.toggle('active', i === n);
+    });
+  }
+</script>
+
+</body>
+</html>
