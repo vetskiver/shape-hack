@@ -4,7 +4,7 @@
 
 This repository is being built for the **Encode Club Shape Rotator Virtual Hackathon**.
 
-The hackathon is built around IC3 research papers. The specific paper this project implements iss
+The hackathon is built around IC3 research papers. The specific paper this project implements is:
 
 **Props: Verifiable Machine-Learning Inference over Private Data**
 Juels and Koushanfar, Cornell Tech / UCSD, 2024
@@ -122,11 +122,11 @@ The five technical layers Claude should always reason about:
 
 | Layer | What it is | How this project uses it |
 |-------|-----------|--------------------------|
-| L1 | Oracle — authenticated data from TLS source | Browser-in-TEE hits NY State medical board registry with user credentials |
-| L2 | TEE + attestation — private tamper-proof computation | AWS Nitro Enclave runs all processing, produces signed attestation |
-| L3 | Pinned model — verifiable ML inference Y = M(X) | Credential extraction classifier runs inside enclave, version is attested |
-| L4 | Data redaction — user-controlled filter f(X) = X' | Identity fields stripped, only consented credential facts exit enclave |
-| L5 | Adversarial defense — authenticated inputs prevent manipulation | Forged credentials rejected because data must arrive via oracle, not direct submission |
+| L1 | Oracle — authenticated data from TLS source | Chromium-in-TEE hits NY State medical board registry with user credentials. Pluggable — same pipeline works for any TLS endpoint. |
+| L2 | TEE + attestation — private tamper-proof computation | Phala Cloud Intel TDX enclave runs all processing, dstack-sdk produces signed TDX attestation. Certificate hash stored on-chain. |
+| L3 | Pinned model — verifiable ML inference Y = M(X) | Small LLM (Llama 3.2 3B / Phi-3 mini) extracts credential facts inside enclave. Model hash is part of the attestation. Auditable by anyone. |
+| L4 | Data redaction — user-controlled filter f(X) = X' | Toggle switches = filter f(X). Identity fields stripped inside enclave. Only consented fields exit. TEE enforces this — not the frontend. |
+| L5 | Adversarial defense — authenticated inputs prevent manipulation | `POST /api/forge` endpoint demonstrates live rejection of three attack types. Architectural, not a filter. Shown live in demo. |
 
 Every feature decision should be evaluated against these five layers. If a feature does not engage at least one layer meaningfully, deprioritise it.
 
@@ -368,55 +368,95 @@ services:
 
 ---
 
-## Prototype Scope — What We Are Building
+## Prototype Scope — The Maximised Version
 
-**In scope for the 6-day build:**
+This is the ambitious build. Every item here is achievable in 6 days with the right focus. Do not cut anything unless you run out of time — cut in reverse priority order only.
 
-- Phala Cloud account set up with GPU instance running
-- Oracle: Chromium fetches credentials from NY medical board inside TEE (adapted from props_training)
-- LLM extraction: Llama 3.2 3B or Phi-3 mini extracts four credential fields inside TEE
-- Redaction filter: user-controlled field selection, identity stripped before output
-- Attestation: real TDX signed certificate via dstack-sdk with model hash included
-- FastAPI backend: clean endpoints matching the five-screen frontend
-- Frontend: props_demo.html adapted to connect to real backend
-- Verifier: signature check against enclave public key, displays credential facts
-- Adversarial demo: three rejection scenarios shown explicitly in demo
+**Priority 1 — Core pipeline (Days 1-3). Non-negotiable.**
 
-**Out of scope — mention in pitch only:**
+- Phala Cloud account with real TDX enclave running
+- Oracle: Chromium fetches credentials from NY medical board inside TEE (props_training pattern)
+- Small LLM (Llama 3.2 3B via Ollama) extracts four credential fields inside enclave
+- Redaction filter: user-controlled toggle switches map to filter f(X) = X'
+- dstack-sdk attestation: real TDX signed certificate with model hash and enclave measurement
+- FastAPI backend with all five API endpoints working
+- Frontend props_demo.html connected to real backend — all five screens functional
 
-- Multiple professions or jurisdictions
-- Employment verification (Marcus Webb use case)
-- Document server oracle (journalism use case)
-- On-chain certificate registry
+**Priority 2 — On-chain certificate registry (Day 4). This makes it a protocol.**
+
+This single addition transforms the project from a SaaS tool into a protocol. A simple smart contract on Base testnet with two functions:
+
+```solidity
+function store(bytes32 certificateId, bytes32 attestationHash) external
+function verify(bytes32 certificateId) external view returns (bytes32)
+```
+
+When a Props certificate is generated, its ID and attestation hash are stored on-chain automatically. The verifier page reads from chain — not from your server. Certificates exist permanently. Nobody needs to trust you. A journalist or court can verify a certificate in 2030 even if your server is gone.
+
+This is the difference between "we built a credential tool" and "we built the first decentralised verified anonymous speech protocol." Builder 2 owns this on day 4.
+
+**Priority 3 — Real adversarial endpoint (Day 4-5). This makes L5 actually real.**
+
+Build `POST /api/forge` — a real FastAPI endpoint that accepts a fake credential and returns a structured rejection explaining which Props layer caught it. During the demo you call this live from the browser. The audience sees a real HTTP 403, not a slide.
+
+Three attack types:
+- `type: "pdf"` → rejected: not oracle-authenticated
+- `type: "fake_registry"` → rejected: TLS fingerprint mismatch
+- `type: "tampered"` → rejected: data hash mismatch inside enclave
+
+Half a day. Builder 1 owns this.
+
+**Priority 4 — Pluggable oracle (Day 5). Makes the protocol claim concrete.**
+
+Show that the same pipeline works for a second data source via a config change. Build the medical board oracle fully. Then show — as a demo moment — that setting `ORACLE_TARGET=employment` switches the oracle to a mock employment portal returning a different credential type. Same enclave. Same attestation. Same redaction. Different oracle.
+
+This makes "we built a protocol not an app" demonstrable rather than just asserted.
+
+**Out of scope — mention in pitch slides only:**
+
+- Multiple fully-built oracle sources (show config change only in demo)
+- Employment verification full implementation (Marcus Webb — pitch slide)
+- Document server oracle (journalism — pitch slide)
+- Production mainnet smart contract (testnet only for hackathon)
 - API for third-party platform integration
+
+
 
 ---
 
-## Demo Flow
+## Demo Flow — The Maximised Version
 
 The demo tells a story in three acts. Every feature built should serve this story.
 
 **Act 1 — The problem (90 seconds)**
-Open with Dr Sarah Chen's quote. Let it sit. Establish the impossible choice. Make judges feel the problem before seeing the solution.
+Open with Dr Sarah Chen's quote. "Four people have died this year. I cannot say this publicly." Let it sit for three seconds. Say: "Until today, she had two options. Stay silent. Or speak and lose everything." Then say: "We built the third option."
 
 **Act 2 — The live demo (3 minutes)**
-1. Submit medical board credentials — show client-side encryption
-2. Oracle authenticates against real registry — show TLS handshake log
-3. Raw credential appears — show all the identity fields present
-4. Filter runs — show identity fields being stripped live
-5. User selects disclosed fields — show granular control
-6. Certificate generated — show signed JSON with enclave measurement
-7. Article published with certificate attached — show the published piece
-8. Reader verifies — show verification succeeding on verifier webpage
+1. Submit medical board credentials — show client-side encryption happening in the browser
+2. Oracle authenticates against real NY medical board — show the TLS fetch log
+3. Raw credential appears — show ALL fields including name, address, license number
+4. LLM runs inside enclave — show the extraction happening live
+5. Filter runs — show identity fields being struck through in real time
+6. User selects disclosed fields via toggles — show granular control from section 2.4
+7. Certificate generated — show signed JSON with enclave measurement and model hash
+8. Certificate stored on-chain — show the Base testnet transaction confirming
+9. Article published with certificate badge — show the published piece with verify link
+10. Reader clicks verify — verifier page reads from chain, shows credential, confirms signature
 
 **Act 3 — The adversarial attack (60 seconds)**
-1. Submit forged PDF — show immediate rejection
-2. Submit via fake registry — show fingerprint mismatch rejection
-3. Intercept and modify oracle data — show tamper detection rejection
-4. Say: "The fraud failed architecturally. Not because we filtered it. Because the pipeline makes it impossible."
+Call `POST /api/forge` live from the browser devtools or a terminal visible to the audience.
+1. Submit forged PDF — show real 403 response: "not oracle-authenticated"
+2. Submit via fake registry — show real 403: "TLS fingerprint mismatch"
+3. Submit tampered data — show real 403: "hash mismatch detected in enclave"
+Say: "Three attacks. Three architectural rejections. Not a filter. The pipeline itself makes fraud impossible."
 
 **Close (30 seconds)**
-Return to Dr Chen's quote. "She can speak now." Show architecture diagram with three use cases. "We built the primitive. The applications are everywhere trust is broken."
+Return to Sarah's quote. "She can speak now. Her identity is nowhere — not in the certificate, not on our server, not on chain. Just a proof. And the proof is enough."
+
+Show architecture diagram. Three use cases on the same pipeline. "We built the primitive. This is what happens when trust doesn't require identity."
+
+**The on-chain moment is the visual centrepiece of Act 2.**
+When the Base testnet transaction confirms on screen — that is the moment that separates this from every other submission. A judge sees a real blockchain transaction containing the certificate hash. That is permanent. That is decentralised. That is not a SaaS tool. That is a protocol.
 
 ---
 
@@ -474,16 +514,22 @@ GET  /api/attestation       ← raw attestation document (existing endpoint)
 
 ---
 
-## Judging Criteria Honest Assessment
+## Judging Criteria — Maximised Version
 
-| Criterion | Score | Why | Risk |
-|-----------|-------|-----|------|
-| Technical depth | 5/5 | All 5 Props layers demonstrated on screen, paper sections referenced in UI, real Nitro Enclave, genuine research extension into anonymous speech | None if backend is real |
-| Product viability | 5/5 | Dr Sarah Chen's story is visceral, market spans medicine/law/finance/journalism, no competitor exists with cryptographic approach | None |
-| Progress made | 3-5/5 | Depends entirely on backend reality. Real enclave + real oracle = 5/5. Mocked backend = 3/5 | Highest risk criterion |
-| Accelerator fit | 5/5 | Protocol framing, B2B licensing model, clear revenue, no competitor, regulatory tailwind | None |
+| Criterion | Score | Why |
+|-----------|-------|-----|
+| Technical depth | 5/5 | All 5 Props layers demonstrated live. Real TDX enclave on Phala Cloud. Real LLM with model hash attested. Real adversarial endpoint called live. On-chain verifiability. Genuine research extension into anonymous speech — domain authors never covered. |
+| Product viability | 5/5 | Dr Sarah Chen's story is visceral. Market spans medicine, law, finance, journalism, government. No competitor exists with cryptographic approach. Signal gives anonymity. LinkedIn gives credentials. Nothing gives both. |
+| Progress made | 5/5 | Working pipeline end to end. Real TEE. Real oracle. Real LLM. Real attestation. Real chain. Real adversarial rejections. Nothing mocked. |
+| Accelerator fit | 5/5 | Protocol with on-chain permanence. Pluggable oracle marketplace. B2B licensing to media and platforms. Regulatory tailwind from EU whistleblower directive and press freedom organisations. No direct competitor. |
 
-**The single most important thing for winning:** Get the Nitro Enclave running with a real attestation on day one. Everything else is secondary.
+**What moves this from 4/5 to 5/5 on technical depth:**
+The on-chain registry, the real adversarial endpoint, and the pluggable oracle together make this a genuine research extension rather than a single-application implementation. Without them you are implementing the paper. With them you are extending it.
+
+**What moves this from 4/5 to 5/5 on accelerator fit:**
+The on-chain registry. Without it you are pitching a SaaS tool. With it you are pitching a protocol. Those are funded differently and evaluated differently by accelerator judges.
+
+**The single most important day:** Day 1. Get Phala Cloud running with a real dstack attestation endpoint returning a real TDX quote. If this does not work on day 1, everything else is at risk. Do not write application code until you have a real attestation coming back from a real enclave.
 
 ---
 
@@ -501,26 +547,70 @@ When asked to design or implement anything, structure responses as:
 
 ## What Good Looks Like
 
-A winning submission for this hackathon:
-- Has a real Nitro Enclave running with a real attestation endpoint
-- Pulls data from a real authenticated TLS source (not a mock)
-- Has a pinned model with its version in the attestation
-- Shows the data redaction filter working visibly in the demo
-- Shows the adversarial rejection working visibly in the demo
-- Has a clean verifier that any judge can use during the presentation
-- Can be explained in one sentence: "We built the first cryptographic primitive for verified anonymous speech using the Props pipeline"
+A winning submission:
+- Real TDX enclave on Phala Cloud with real dstack attestation
+- Real oracle pulling from a real authenticated TLS source — not a mock
+- Real small LLM running inside enclave with model hash in attestation
+- Toggle switches on Screen 1 actually control the redaction filter
+- Struck-through fields on Screen 2 reflect what the enclave actually stripped
+- Certificate stored on Base testnet — verifier reads from chain not from server
+- `POST /api/forge` returns real HTTP rejections live during demo
+- Pluggable oracle config shown — same pipeline, different data source
+- Explained in one sentence: "We built the first decentralised protocol for verified anonymous speech"
 
 A losing submission:
-- Mocks the TEE with a simulation
-- Uses a fake data source
-- Has no visible attestation output
-- Describes features rather than demonstrating them
+- Mocks the TEE or uses the dstack simulator in production
+- Hardcodes the struck-through fields in the frontend
+- Has no on-chain component — just a server-side database
+- Shows Screen 5 as static slides instead of live API calls
 - Builds too many things and demos none of them cleanly
+- Pitches a credential tool instead of a protocol
 
 ---
 
 ## The One Sentence
 
-**"For the first time, you can prove you are a cardiologist, a lawyer, or a whistleblower — without revealing who you are."**
+**"We built the first decentralised protocol for verified anonymous speech — for the first time, a doctor, lawyer, or whistleblower can prove their credentials without revealing who they are, and that proof lives on-chain forever."**
 
 Every technical decision should make this sentence more credible.
+
+---
+
+## 6-Day Build Plan
+
+**Day 1 — Infrastructure. Do not write application code until this works.**
+- Sign up for Phala Cloud, get hackathon credits
+- Deploy a hello world FastAPI app to Phala Cloud via docker-compose
+- Confirm dstack-sdk attestation works: `client.get_quote(b'test')` returns a real TDX quote
+- Mount `/var/run/dstack.sock` in docker-compose and verify connection
+- Goal: real attestation quote in terminal by end of day
+
+**Day 2 — Oracle. The hardest day.**
+- Builder 1: adapt Chromium-in-TEE pattern from props_training to hit NY medical board
+- Get real credential record coming back inside the TEE
+- Goal: raw credential JSON printed to terminal from inside enclave
+
+**Day 3 — LLM + redaction + attestation output.**
+- Builder 1: wire Ollama into pipeline, extract four fields from credential record
+- Builder 1: build redaction filter — user-selected fields only exit enclave
+- Builder 1: build attestation output schema — signed JSON with model hash
+- Builder 2: connect all five frontend screens to real backend endpoints
+- Goal: full pipeline working end to end, real certificate generated
+
+**Day 4 — On-chain registry + adversarial endpoint.**
+- Builder 2: deploy simple smart contract to Base testnet, wire into certificate generation
+- Builder 2: verifier page reads from chain not from server
+- Builder 1: build `POST /api/forge` with three real rejection types
+- Goal: certificate stored on-chain, forge endpoint returning real 403s live
+
+**Day 5 — Pluggable oracle + full integration.**
+- Builder 1: add ORACLE_TARGET config abstraction, mock employment portal as second source
+- Both: full end-to-end test on deployed Phala Cloud instance
+- Both: fix everything broken
+- Goal: all four priorities working, demo rehearsed once
+
+**Day 6 — Demo prep only. No new features.**
+- Practice the demo flow until it is under 5 minutes
+- Prepare two pitch slides: architecture diagram and three use cases
+- Fix rough edges in the UI
+- Goal: confident smooth demo that tells Sarah Chen's story and ends with the on-chain transaction confirming on screen
