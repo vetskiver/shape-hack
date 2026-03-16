@@ -1,6 +1,14 @@
 version: '3.8'
 
 services:
+  # Props L3 — Pinned model sidecar (section 3.2)
+  # Runs Llama 3.2 3B inside the enclave. Model hash is captured for attestation.
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
   props-oracle:
     image: vetskiver/props-oracle:latest
     ports:
@@ -15,5 +23,13 @@ services:
       # Set to "true" only for local dev — disables TLS pin and RSA decryption
       - SKIP_TLS_VERIFY=${SKIP_TLS_VERIFY:-false}
       - SKIP_ENCRYPTION=${SKIP_ENCRYPTION:-false}
+      # Props L3: Ollama sidecar URL and model name
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
     shm_size: '256m'
     restart: unless-stopped
+    depends_on:
+      - ollama
+
+volumes:
+  ollama_data:

@@ -16,13 +16,37 @@ If that works, all subsequent sessions can trust they're building on verified ha
 import hashlib
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="Props Oracle", version="0.1.0")
+
+# Props L3 — pull model and wait for Ollama before accepting requests
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from extractor import wait_for_ollama, OLLAMA_BASE_URL, MODEL_NAME
+    wait_for_ollama()
+    # Pull model if not already present
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            print(f"[startup] Pulling {MODEL_NAME} (no-op if already cached)...")
+            async with client.stream(
+                "POST",
+                f"{OLLAMA_BASE_URL}/api/pull",
+                json={"name": MODEL_NAME, "stream": False},
+            ) as resp:
+                resp.raise_for_status()
+        print(f"[startup] {MODEL_NAME} ready")
+    except Exception as e:
+        print(f"[startup] Model pull warning: {e}")
+    yield
+
+
+app = FastAPI(title="Props Oracle", version="0.1.0", lifespan=lifespan)
 
 # Allow the frontend (running in a browser) to call this API.
 # Required because the frontend and API are on different domains.
