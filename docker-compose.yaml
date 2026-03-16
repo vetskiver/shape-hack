@@ -9,4 +9,11 @@ services:
       - /var/run/dstack.sock:/var/run/dstack.sock
     environment:
       - PORT=8080
+      # Props L1: pin the TLS fingerprint of the real NYSED registry.
+      # Get with: openssl s_client -connect myaccount.op.nysed.gov:443 </dev/null 2>/dev/null | openssl x509 -fingerprint -sha256 -noout
+      - NYSED_TLS_FINGERPRINT=${NYSED_TLS_FINGERPRINT:-REPLACE_WITH_REAL_SHA256_FINGERPRINT}
+      # Set to "true" only for local dev — disables TLS pin and RSA decryption
+      - SKIP_TLS_VERIFY=${SKIP_TLS_VERIFY:-false}
+      - SKIP_ENCRYPTION=${SKIP_ENCRYPTION:-false}
+    shm_size: '256m'
     restart: unless-stopped
