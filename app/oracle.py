@@ -15,8 +15,10 @@ WHY CHROMIUM INSIDE THE ENCLAVE:
 
 Fetch mode:
   license_lookup — searches op.nysed.gov/verification-search by license number.
-  Verified against the real portal on 2026-03-16. Portal URL and form selectors
-  confirmed working.
+  HTML selectors verified against the live portal on 2026-03-16.
+
+Configurable profession via ORACLE_PROFESSION env var (default: Physician).
+Supports any NY State licensed profession: Physician, Dentist, Attorney, etc.
 
 The oracle_authenticated flag and data_hash are consumed by the forge endpoint
 (L5) to detect data that bypassed the oracle pipeline.
@@ -27,6 +29,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import ssl
 import socket
 from datetime import datetime, timezone
@@ -49,15 +52,36 @@ NYSED_TLS_FINGERPRINT = os.environ.get(
 NYSED_SEARCH_URL = "https://www.op.nysed.gov/verification-search"
 NYSED_HOSTNAME = "www.op.nysed.gov"
 
-# Profession code for Medicine/Physician on the NYSED portal
-PHYSICIAN_PROFESSION = "Physician (060)"
+# ---------------------------------------------------------------------------
+# Configurable profession — ORACLE_PROFESSION env var
+# Matches the exact text shown in the NYSED portal profession dropdown.
+# ---------------------------------------------------------------------------
+# Common values (use exact portal text including code):
+#   Physician (060)          — medical doctors (MD/DO)
+#   Dentist (050)            — dentists
+#   Registered Nurse (049)   — RNs
+#   Licensed Clinical Social Worker (029)
+#   Physical Therapist (073)
+#   Pharmacy (032)
+#   Psychology (014)
+# Default is Physician for the Dr Sarah Chen demo.
+ORACLE_PROFESSION = os.environ.get("ORACLE_PROFESSION", "Physician (060)")
 
+# Profession code extracted from the label, e.g. "060" from "Physician (060)"
+_PROFESSION_CODE_RE = re.compile(r"\((\d+)\)")
+
+
+def _get_profession_code(profession_label: str) -> str:
+    m = _PROFESSION_CODE_RE.search(profession_label)
+    return m.group(1) if m else ""
+
+
+# ---------------------------------------------------------------------------
+# TLS verification
+# ---------------------------------------------------------------------------
 
 def get_tls_fingerprint(hostname: str, port: int = 443) -> str:
-    """
-    Props L1 — section 3.1: TLS fingerprint check.
-    Returns the SHA-256 fingerprint of the server's TLS certificate.
-    """
+    """Returns the live SHA-256 fingerprint of the server's TLS certificate."""
     ctx = ssl.create_default_context()
     with socket.create_connection((hostname, port), timeout=10) as sock:
         with ctx.wrap_socket(sock, server_hostname=hostname) as tls_sock:
@@ -67,9 +91,9 @@ def get_tls_fingerprint(hostname: str, port: int = 443) -> str:
 
 def verify_tls_fingerprint() -> tuple[bool, str]:
     """
-    Returns (True, fingerprint) if live cert matches the pinned value.
-    Returns (False, live_fingerprint) on mismatch — oracle will abort.
-    SKIP_TLS_VERIFY=true bypasses this for local dev only.
+    Props L1 — section 3.1: TLS fingerprint verification.
+    Returns (True, fingerprint) on match, (False, live_fp) on mismatch.
+    SKIP_TLS_VERIFY=true bypasses for local dev only.
     """
     if os.environ.get("SKIP_TLS_VERIFY", "false").lower() == "true":
         return True, "skipped"
@@ -81,9 +105,13 @@ def verify_tls_fingerprint() -> tuple[bool, str]:
         return False, f"error:{e}"
 
 
+# ---------------------------------------------------------------------------
+# Credential decryption
+# ---------------------------------------------------------------------------
+
 def decrypt_credentials(encrypted_payload: str) -> dict:
     """
-    Decrypts RSA-OAEP encrypted credentials submitted by the user's browser.
+    Decrypts RSA-OAEP encrypted credentials from the user's browser.
     SKIP_ENCRYPTION=true accepts plain JSON for local dev.
     """
     if os.environ.get("SKIP_ENCRYPTION", "false").lower() == "true":
@@ -112,19 +140,21 @@ def decrypt_credentials(encrypted_payload: str) -> dict:
         raise ValueError(f"Credential decryption failed: {e}")
 
 
-async def _fetch_credential_async(license_number: str) -> dict:
+# ---------------------------------------------------------------------------
+# Browser automation
+# ---------------------------------------------------------------------------
+
+async def _fetch_credential_async(license_number: str, profession: str) -> dict:
     """
-    Props L1 — Oracle layer (section 3.1).
-    Launches headless Chromium, navigates the NYSED verification portal,
-    searches by license number, and returns the full credential record.
+    Props L1 — launches headless Chromium and navigates the NYSED portal.
 
     Form flow confirmed against live portal 2026-03-16:
-    1. Select "License Number" from search-by dropdown
-    2. Select "Physician (060)" from profession dropdown
+    1. Select search type "License Number" from first dropdown
+    2. Select profession (e.g. "Physician (060)") from second dropdown
     3. Fill #searchInput with 6-digit license number
     4. Click #goButton
-    5. Click the license number in results to open detail panel
-    6. Scrape the detail panel fields
+    5. Click license number link in results → opens #licenseeDetailModal
+    6. Scrape modal with exact id-based selectors
     """
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -151,36 +181,38 @@ async def _fetch_credential_async(license_number: str) -> dict:
             print(f"[oracle] Navigating to {NYSED_SEARCH_URL}")
             await page.goto(NYSED_SEARCH_URL, wait_until="networkidle", timeout=30000)
 
-            # Step 1 — select "License Number" from the search-by dropdown
+            # Step 1 — select "License Number" from search-by dropdown
             await page.locator('input[placeholder="Select option"]').nth(0).click()
             await page.wait_for_timeout(500)
             await page.get_by_text("License Number", exact=True).click()
             await page.wait_for_timeout(500)
 
-            # Step 2 — select "Physician (060)" from the profession dropdown
+            # Step 2 — select profession from second dropdown
             await page.locator('input[placeholder="Select option"]').click()
             await page.wait_for_timeout(300)
-            await page.keyboard.type("Physician")
+            # Type the profession name to filter the list
+            profession_name = profession.split("(")[0].strip()
+            await page.keyboard.type(profession_name)
             await page.wait_for_timeout(500)
-            await page.get_by_text(PHYSICIAN_PROFESSION, exact=True).click()
+            await page.get_by_text(profession, exact=True).click()
             await page.wait_for_timeout(500)
 
             # Step 3 — fill the six-digit license number
             await page.fill("#searchInput", license_number)
             await page.wait_for_timeout(300)
 
-            # Step 4 — click GO (now enabled)
+            # Step 4 — click GO
             await page.click("#goButton")
             await page.wait_for_load_state("networkidle", timeout=15000)
             await page.wait_for_timeout(1500)
 
-            # Step 5 — click the license number link to open detail panel
+            # Step 5 — click license number link to open detail modal
             await page.get_by_text(license_number).first.click()
             await page.wait_for_load_state("networkidle", timeout=15000)
             await page.wait_for_timeout(1500)
 
-            # Step 6 — scrape the detail panel
-            credential = await _scrape_detail_panel(page, license_number)
+            # Step 6 — scrape the modal
+            credential = await _scrape_modal(page, license_number, profession)
 
         finally:
             await browser.close()
@@ -188,115 +220,98 @@ async def _fetch_credential_async(license_number: str) -> dict:
     return credential
 
 
-async def _scrape_detail_panel(page: Page, license_number: str) -> dict:
+async def _scrape_modal(page: Page, license_number: str, profession: str) -> dict:
     """
-    Scrapes the credential detail panel on the NYSED portal.
+    Scrapes the #licenseeDetailModal that opens after clicking a result.
 
-    Detail panel structure confirmed 2026-03-16:
-      Name:                 DOGAN OZGEN MUHSIN        (above panel, heading)
-      Address:              BROOKLYN NY
-      Profession:           Medicine (060)
-      License Number:       209311
-      Date of Licensure:    January 08, 1998
-      Status:               Registered
-      Registered through:   January 31, 2027
-      Medical School:       TRAKYA UNIVERSITY MEDICAL FACULTY
-      Degree Date:          September 30, 1986
-      Additional Quals:     None
-
-    Returns a dict with our canonical field names.
+    Exact HTML structure verified 2026-03-16:
+      <span id="name" class="person-name">DOGAN OZGEN MUHSIN</span>
+      <dd id="address">      BROOKLYN NY
+      <dd id="profession">   Medicine (060)
+      <dd id="licenseNumber"> 209311
+      <dd id="dateOfLicensure"> January 08, 1998
+      <dd id="status">       Registered
+      <dd id="registeredThroughDate"> January 31, 2027
+      <dd id="schoolName">   TRAKYA UNIVERSITY MEDICAL FACULTY
+      <dd id="degreeDate">   September 30, 1986
+      <dd id="additionalQualifications"> None
     """
-    # Extract the practitioner name from the heading above the detail panel
-    name = await page.evaluate("""() => {
-        // The name appears as a heading just above the LICENSEE INFO tab panel
-        const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, .licensee-name, .panel-title'));
-        for (const h of headings) {
-            const t = h.textContent.trim();
-            // Name is all caps, multiple words, no numbers
-            if (t.length > 3 && t === t.toUpperCase() && /^[A-Z ]+$/.test(t)) {
-                return t;
-            }
-        }
-        // Fallback: find by position near the tab panel
-        const panel = document.querySelector('#licenseeInfoTab, .tab-pane.active, [class*=licensee]');
-        if (panel) {
-            const prev = panel.previousElementSibling;
-            if (prev) return prev.textContent.trim();
-        }
-        return null;
-    }""")
-
-    # Extract all label-value pairs from the detail panel
     raw = await page.evaluate("""() => {
-        const result = {};
-        // The panel renders as a series of label:value rows.
-        // Try multiple selector patterns for robustness.
+        const modal = document.querySelector('#licenseeDetailModal');
+        if (!modal) return {};
 
-        // Pattern: adjacent dt/dd pairs
-        document.querySelectorAll('dt').forEach(dt => {
-            const dd = dt.nextElementSibling;
-            if (dd && dd.tagName === 'DD') {
-                result[dt.textContent.trim()] = dd.textContent.trim();
-            }
-        });
+        const text = id => {
+            const el = modal.querySelector('#' + id);
+            return el ? el.textContent.trim() : null;
+        };
 
-        // Pattern: table rows with th/td
-        document.querySelectorAll('tr').forEach(tr => {
-            const cells = tr.querySelectorAll('th, td');
-            if (cells.length === 2) {
-                result[cells[0].textContent.trim()] = cells[1].textContent.trim();
-            }
-        });
-
-        // Pattern: rows inside the active tab panel (most likely structure)
-        const panel = document.querySelector('.tab-pane.active, #licenseeInfoTab, [aria-labelledby*=licensee]');
-        if (panel) {
-            // Walk all text nodes looking for label:value pairs
-            const rows = panel.querySelectorAll('div, p, li, span');
-            rows.forEach(el => {
-                const text = el.textContent.trim();
-                const match = text.match(/^([A-Za-z ]+(?:Date|Number|School|Status|Through|Qualifications|Address|Profession)?)\\s*[:\\-]\\s*(.+)$/);
-                if (match) {
-                    result[match[1].trim()] = match[2].trim();
-                }
-            });
-        }
-
-        return result;
+        return {
+            name:                    modal.querySelector('span#name.person-name')?.textContent.trim() || null,
+            address:                 text('address'),
+            profession:              text('profession'),
+            license_number:          text('licenseNumber'),
+            date_of_licensure:       text('dateOfLicensure'),
+            status:                  text('status'),
+            registered_through:      text('registeredThroughDate'),
+            medical_school:          text('schoolName'),
+            degree_date:             text('degreeDate'),
+            additional_qualifications: text('additionalQualifications'),
+        };
     }""")
 
-    # Also grab the full visible text as a fallback parser
-    page_text = await page.evaluate("() => document.body.innerText")
+    if not raw or not any(raw.values()):
+        raise ValueError(
+            "Modal scrape returned empty — license not found or portal changed structure. "
+            f"License: {license_number}, Profession: {profession}"
+        )
 
-    # Build credential from scraped data
     credential = {}
 
-    # Name
-    if name:
-        credential["name"] = name.title()  # Convert DOGAN OZGEN MUHSIN → Dogan Ozgen Muhsin
+    # Name — convert ALL CAPS to Title Case
+    if raw.get("name"):
+        credential["name"] = raw["name"].title()
 
-    # Map raw scraped labels to canonical fields
-    label_map = {
-        "Address": "address",
-        "Profession": "specialty",
-        "License Number": "license_number",
-        "Date of Licensure": "initial_registration_date",
-        "Status": "standing",
-        "Registered through Date": "registered_through",
-        "Medical School": "medical_school",
-        "Degree Date": "degree_date",
-        "Additional Qualifications": "additional_qualifications",
-    }
-    for label, field in label_map.items():
-        if label in raw and raw[label].strip():
-            credential[field] = raw[label].strip()
+    # Address
+    if raw.get("address"):
+        credential["address"] = raw["address"].strip()
 
-    # Fallback: parse key fields directly from page text if not found above
-    if not credential:
-        credential = _parse_from_page_text(page_text, license_number)
+    # Specialty — strip profession code "(060)" from label
+    if raw.get("profession"):
+        credential["specialty"] = re.sub(r"\s*\(\d+\)\s*$", "", raw["profession"]).strip()
 
-    # Compute years active from initial registration date
-    if "initial_registration_date" in credential and "years_active" not in credential:
+    # License number
+    if raw.get("license_number"):
+        credential["license_number"] = raw["license_number"].strip()
+
+    # Standing — normalise to "In good standing" for registered/active
+    if raw.get("status"):
+        status = raw["status"].strip()
+        if status.lower() in ("registered", "active"):
+            credential["standing"] = "In good standing"
+        else:
+            credential["standing"] = status  # e.g. "Suspended", "Revoked"
+
+    # Registration dates
+    if raw.get("registered_through"):
+        credential["registered_through"] = raw["registered_through"].strip()
+
+    if raw.get("date_of_licensure"):
+        credential["initial_registration_date"] = raw["date_of_licensure"].strip()
+
+    # Medical school (identity-adjacent — L4 will strip if user doesn't consent)
+    if raw.get("medical_school") and raw["medical_school"] != "None":
+        credential["medical_school"] = raw["medical_school"].strip()
+
+    # Degree date
+    if raw.get("degree_date"):
+        credential["degree_date"] = raw["degree_date"].strip()
+
+    # Additional qualifications
+    if raw.get("additional_qualifications") and raw["additional_qualifications"] != "None":
+        credential["additional_qualifications"] = raw["additional_qualifications"].strip()
+
+    # Years active — computed from date of licensure
+    if "initial_registration_date" in credential:
         try:
             from dateutil.parser import parse as parse_date
             reg_date = parse_date(credential["initial_registration_date"])
@@ -304,58 +319,26 @@ async def _scrape_detail_panel(page: Page, license_number: str) -> dict:
         except Exception:
             pass
 
-    # Clean up specialty — strip the profession code "(060)"
-    if "specialty" in credential:
-        import re
-        credential["specialty"] = re.sub(r"\s*\(\d+\)\s*$", "", credential["specialty"]).strip()
-
     # Jurisdiction is always New York State for NYSED records
     credential["jurisdiction"] = "New York State"
 
-    # Normalise standing
-    if "standing" in credential:
-        standing = credential["standing"].lower()
-        if "registered" in standing or "active" in standing or "good" in standing:
-            credential["standing"] = "In good standing"
-
-    print(f"[oracle] Scraped {len(credential)} fields")
+    print(f"[oracle] Scraped {len(credential)} fields — name: {credential.get('name', 'MISSING')}")
     return credential
 
 
-def _parse_from_page_text(page_text: str, license_number: str) -> dict:
-    """
-    Last-resort parser: extracts fields from the raw visible text of the page.
-    Used if the DOM-based scraper returns nothing (e.g. portal changes structure).
-    """
-    import re
-    result = {}
-    lines = [l.strip() for l in page_text.split("\n") if l.strip()]
-
-    field_patterns = {
-        "address": r"^([A-Z][A-Z\s]+(?:NY|CT|NJ|PA))\s*$",
-        "standing": r"^(Registered|Active|Inactive|Suspended|Revoked)$",
-        "registered_through": r"^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d+,\s+\d{4}$",
-        "license_number": license_number,
-    }
-
-    # Find known label:value pairs
-    for i, line in enumerate(lines):
-        for label in ["Address", "Profession", "License Number", "Date of Licensure",
-                      "Status", "Registered through Date", "Medical School"]:
-            if line == label and i + 1 < len(lines):
-                result[label.lower().replace(" ", "_")] = lines[i + 1]
-
-    return result
-
+# ---------------------------------------------------------------------------
+# Main entrypoint
+# ---------------------------------------------------------------------------
 
 async def _oracle_main(credentials: dict) -> dict:
     """
-    Props L1 — main oracle entrypoint.
-    Runs TLS pin check, then launches Chromium to fetch the credential.
+    Props L1 — runs TLS pin check then fetches the credential.
     """
     license_number = credentials.get("license_number", "")
     if not license_number:
         raise ValueError("license_number is required")
+
+    profession = credentials.get("profession", ORACLE_PROFESSION)
 
     # Props L1 — TLS fingerprint verification (section 3.1)
     fingerprint_ok, live_fingerprint = verify_tls_fingerprint()
@@ -367,14 +350,12 @@ async def _oracle_main(credentials: dict) -> dict:
         )
     print(f"[oracle] TLS fingerprint verified ({live_fingerprint[:16]}...)")
 
-    raw_credential = await _fetch_credential_async(license_number)
+    raw_credential = await _fetch_credential_async(license_number, profession)
 
     if not raw_credential:
-        raise ValueError("Oracle returned empty credential — portal may have changed structure")
+        raise ValueError("Oracle returned empty credential")
 
     # Props L1/L5 — data integrity hash (section 3.1 + 2.3)
-    # Hash the raw credential immediately after fetch. The forge endpoint (L5)
-    # uses this to detect data modified after oracle authentication.
     raw_json = json.dumps(raw_credential, sort_keys=True)
     data_hash = hashlib.sha256(raw_json.encode()).hexdigest()
 
@@ -386,6 +367,7 @@ async def _oracle_main(credentials: dict) -> dict:
         "data_hash": data_hash,
         "fetch_timestamp": datetime.now(timezone.utc).isoformat(),
         "fetch_mode": "license_lookup",
+        "profession": profession,
     }
 
 
@@ -394,18 +376,22 @@ def fetch_credential(credentials_payload) -> dict:
     Props L1 — Oracle layer (section 3.1). Public entrypoint.
 
     Args:
-        credentials_payload: dict with {license_number} or RSA-encrypted JSON string.
+        credentials_payload: dict with {license_number, profession (optional)}
+                             or RSA-encrypted JSON string.
 
     Returns:
         {
-          credential: { name, address, specialty, license_number, standing,
-                        years_active, jurisdiction, initial_registration_date, ... },
+          credential: {
+            name, address, specialty, license_number, standing, years_active,
+            jurisdiction, initial_registration_date, registered_through,
+            medical_school, degree_date
+          },
           oracle_authenticated: True,
           oracle_source: "www.op.nysed.gov",
           oracle_tls_fingerprint: "...",
           data_hash: "sha256...",
           fetch_timestamp: "iso8601",
-          fetch_mode: "license_lookup"
+          profession: "Physician (060)"
         }
     """
     if isinstance(credentials_payload, dict):
@@ -423,10 +409,11 @@ if __name__ == "__main__":
     import sys
 
     license_number = os.environ.get("TEST_LICENSE_NUMBER", "209311")
-    print(f"[oracle] Testing oracle with license number: {license_number}")
+    profession = os.environ.get("ORACLE_PROFESSION", "Physician (060)")
+    print(f"[oracle] Testing oracle: license={license_number}, profession={profession}")
 
     try:
-        result = fetch_credential({"license_number": license_number})
+        result = fetch_credential({"license_number": license_number, "profession": profession})
         print("[oracle] SUCCESS:")
         print(json.dumps(result, indent=2))
     except Exception as e:
