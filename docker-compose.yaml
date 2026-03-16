@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  props-oracle:
+    image: vetskiver/props-oracle:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/dstack.sock:/var/run/dstack.sock
+    environment:
+      - PORT=8080
+    restart: unless-stopped
