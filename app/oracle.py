@@ -45,13 +45,17 @@ from playwright.async_api import async_playwright, BrowserContext, Page
 # This value must be updated when the cert renews (typically annually).
 NYSED_TLS_FINGERPRINT = os.environ.get(
     "NYSED_TLS_FINGERPRINT",
-    # Placeholder — replace with real fingerprint before first live run.
-    # Set NYSED_TLS_FINGERPRINT env var in docker-compose.yaml to override.
-    "REPLACE_WITH_REAL_SHA256_FINGERPRINT",
+    # SHA-256 fingerprint of www.op.nysed.gov, verified 2026-03-16.
+    # Renews annually — update by running:
+    #   openssl s_client -connect www.op.nysed.gov:443 -servername www.op.nysed.gov \
+    #     </dev/null 2>/dev/null | openssl x509 -fingerprint -sha256 -noout
+    "0D53B7BB43B892DC70D341431131D16EC7A3628714D0104F193100A792BBC68D8",
 )
 
-# The two NYSED endpoints we interact with
-PRACTITIONER_LOGIN_URL = "https://myaccount.op.nysed.gov/login"
+# The two NYSED endpoints we interact with.
+# myaccount.op.nysed.gov (practitioner login) does not resolve publicly —
+# the portal redirects through www.op.nysed.gov for all public access.
+PRACTITIONER_LOGIN_URL = "https://www.op.nysed.gov/professions/online-services"
 PUBLIC_LOOKUP_URL = "https://www.op.nysed.gov/verify"
 
 
@@ -370,7 +374,8 @@ async def _fetch_credential_async(credentials: dict) -> dict:
     # Verify we are talking to the real NYSED registry before launching browser.
     # A fake registry with a different cert fingerprint is rejected here.
     # -------------------------------------------------------------------------
-    hostname = "myaccount.op.nysed.gov" if mode == "practitioner_login" else "www.op.nysed.gov"
+    # Both modes go through www.op.nysed.gov — myaccount subdomain does not resolve publicly.
+    hostname = "www.op.nysed.gov"
     fingerprint_ok, live_fingerprint = verify_tls_fingerprint(hostname)
 
     if not fingerprint_ok:
