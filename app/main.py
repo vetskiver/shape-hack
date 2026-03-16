@@ -1,6 +1,16 @@
 """
-Props Anonymous Expert Oracle — Day 1 FastAPI app.
-Minimal endpoint to confirm dstack TDX attestation works on Phala Cloud.
+Props Anonymous Expert Oracle — Session 1 (Day 1)
+==================================================
+Goal: Prove that our app is running inside a real Intel TDX enclave on Phala Cloud
+and can produce a real hardware-signed attestation quote.
+
+WHY THIS MATTERS:
+Everything in this project — the doctor credential fetch, the LLM, the redaction filter —
+must happen inside a tamper-proof hardware box (TEE) that nobody can cheat.
+This file proves that box exists and is real.
+
+The Day 1 test: curl /api/attestation → get a real TDX quote back.
+If that works, all subsequent sessions can trust they're building on verified hardware.
 """
 
 import hashlib
@@ -14,6 +24,8 @@ from fastapi.responses import JSONResponse
 
 app = FastAPI(title="Props Oracle", version="0.1.0")
 
+# Allow the frontend (running in a browser) to call this API.
+# Required because the frontend and API are on different domains.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,12 +36,20 @@ app.add_middleware(
 
 def get_tappd_client():
     """
-    Props L2 — TEE + attestation (section 3.1)
-    Returns a TappdClient connected via the mounted Unix socket.
-    Falls back to None outside TEE for graceful degradation.
+    Props L2 — TEE + attestation (Props paper, section 3.1)
+
+    TappdClient is the dstack-sdk class that talks to the TEE hardware
+    via a Unix socket mounted at /var/run/dstack.sock (see docker-compose.yaml).
+
+    WHY: Without this client, we cannot get attestation quotes or derive
+    enclave-bound signing keys. This is the bridge between our Python app
+    and the Intel TDX chip running underneath Phala Cloud.
+
+    Returns None gracefully if run outside a real enclave (e.g. local dev).
     """
     try:
         from dstack_sdk import TappdClient
+        # TappdClient auto-connects to /var/run/dstack.sock
         client = TappdClient()
         return client
     except Exception:
@@ -38,6 +58,7 @@ def get_tappd_client():
 
 @app.get("/")
 async def root():
+    """Basic service info. Confirms the app is running."""
     return {
         "service": "Props Anonymous Expert Oracle",
         "version": "0.1.0",
@@ -48,13 +69,30 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check for Phala Cloud."""
+    """
+    Health check endpoint used by Phala Cloud to confirm the container is alive.
+    Must return 200 OK or Phala will restart the container.
+    """
     return {"status": "ok"}
 
 
-# Props L2 — TEE + attestation (section 3.1)
-# Returns a real TDX attestation quote from dstack-sdk.
-# This is the Day 1 success criterion: a real quote from a real enclave.
+# =============================================================================
+# Props L2 — TEE + Attestation (section 3.1)
+# =============================================================================
+# WHY THIS ENDPOINT EXISTS:
+# The entire trust model of Props depends on being able to prove that computation
+# happened inside a real, unmodified TEE. This endpoint does that.
+#
+# A TDX attestation quote is a blob of data signed by Intel's hardware.
+# It cryptographically proves:
+#   1. This code is running inside a real Intel TDX enclave
+#   2. The exact version of the code running (via enclave measurement)
+#   3. Nobody has tampered with it
+#
+# In later sessions, the attestation will include the credential certificate,
+# the LLM model hash, and the list of disclosed fields — all signed together.
+# This endpoint is the foundation for all of that.
+# =============================================================================
 @app.get("/api/attestation")
 async def get_attestation():
     client = get_tappd_client()
@@ -70,7 +108,9 @@ async def get_attestation():
         )
 
     try:
-        # Build a payload and hash it — TDX report_data is 64 bytes max
+        # We hash a small payload to create the report_data field in the TDX quote.
+        # TDX report_data is max 64 bytes — we SHA-256 hash our payload to fit.
+        # In session 4, this payload will be the certificate data we want attested.
         payload = json.dumps({
             "service": "props-oracle",
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -78,12 +118,17 @@ async def get_attestation():
         }).encode()
         report_data = hashlib.sha256(payload).digest()  # 32 bytes
 
-        # Props L2: get a real TDX quote from the enclave hardware via dstack
+        # This call asks the Intel TDX hardware to sign our report_data.
+        # The returned quote can be verified by anyone using Intel's public keys.
         result = client.tdx_quote(report_data)
 
         return {
             "attestation": {
+                # The actual hardware-signed quote (hex encoded).
+                # Contains enclave measurement, report_data, and Intel's signature.
                 "quote": result.quote,
+                # The event log records every step of the enclave boot process.
+                # Verifiers use this to confirm the exact code that was loaded.
                 "event_log": result.event_log if hasattr(result, "event_log") else None,
                 "payload_hash": report_data.hex(),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -103,9 +148,18 @@ async def get_attestation():
         )
 
 
-# Props L2 — TDX key derivation (section 3.1)
-# Derives a deterministic key from the enclave measurement.
-# Same enclave code + same path = same key every time. Different enclave = different key.
+# =============================================================================
+# Props L2 — Enclave-Derived Signing Key (section 3.1)
+# =============================================================================
+# WHY THIS ENDPOINT EXISTS:
+# In session 4, the enclave will sign every credential certificate it produces.
+# That signature proves the certificate came from THIS specific enclave build
+# and not from a tampered or fake version.
+#
+# The key is DETERMINISTIC: same enclave code + same path = same key, every time.
+# If the code changes (tampered), the key changes, and old signatures become invalid.
+# This is what makes certificate verification trustworthy.
+# =============================================================================
 @app.get("/api/tdx-key")
 async def get_tdx_key():
     client = get_tappd_client()
@@ -117,13 +171,15 @@ async def get_tdx_key():
         )
 
     try:
-        # derive_key(path, subject) → deterministic key bound to this enclave
+        # derive_key(path, subject) asks the TEE to derive a key bound to this enclave.
+        # We never expose the raw key — only its hash, for verification purposes.
         result = client.derive_key("/props-oracle", "signing-key")
         key_bytes = result.toBytes() if hasattr(result, "toBytes") else str(result).encode()
         return {
             "derived_key_hash": hashlib.sha256(key_bytes).hexdigest(),
             "purpose": "enclave-deterministic signing key",
-            "note": "Same enclave measurement always produces the same key",
+            "note": "Same enclave measurement always produces the same key. "
+                    "Deploy different code and this hash changes.",
         }
     except Exception as e:
         return JSONResponse(
