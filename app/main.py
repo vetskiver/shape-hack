@@ -1,8 +1,13 @@
 """
-Props Anonymous Expert Oracle — Session 4 (Day 3 afternoon)
+Props Anonymous Expert Oracle — Session 8 (Pluggable Oracle)
 ============================================================
 Full pipeline wired together:
   L1 Oracle → L3 LLM extraction → L4 Redaction → L2 Attestation
+
+S8: ORACLE_TARGET env var selects the data source:
+  medical_board  — Chromium scrapes NY State medical board (default)
+  employment     — Mock HR portal returning employment credentials
+Same enclave, same attestation, same redaction — different oracle.
 
 Endpoints:
   GET  /api/attestation        — raw TDX quote (S1, unchanged)
@@ -26,9 +31,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from oracle import fetch_credential
+from oracle import fetch_credential, ORACLE_TARGET
 from extractor import extract_credential_facts, wait_for_ollama, OLLAMA_BASE_URL, MODEL_NAME
-from redaction import apply_redaction_filter
+from redaction import apply_redaction_filter, get_all_disclosable_fields
 from attestation import generate_certificate, verify_certificate
 
 
@@ -62,7 +67,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Props Oracle", version="0.4.1", lifespan=lifespan)
+app = FastAPI(title="Props Oracle", version="0.5.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -109,8 +114,10 @@ class ForgeRequest(BaseModel):
 async def root():
     return {
         "service": "Props Anonymous Expert Oracle",
-        "version": "0.4.1",
+        "version": "0.5.0",
         "status": "running",
+        "oracle_target": ORACLE_TARGET,
+        "disclosable_fields": get_all_disclosable_fields(ORACLE_TARGET),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -202,17 +209,20 @@ async def get_tdx_key():
 def verify_credential_endpoint(request: VerifyRequest):
     """
     Full Props pipeline:
-      1. L1 — Oracle: Chromium authenticates against NY medical board, fetches credential
-      2. L3 — LLM:    Llama 3.2 3B extracts four credential facts inside enclave
+      1. L1 — Oracle: fetches credential from configured oracle source
+      2. L3 — LLM:    extracts credential facts inside enclave
       3. L4 — Redact: User-selected fields only; identity fields always stripped
       4. L2 — Attest: Ed25519 signature + TDX quote over the certificate payload
 
-    Body: { credentials: {license_number, profession?}, disclosed_fields: [...] }
+    Body: { credentials: {...}, disclosed_fields: [...] }
     Returns: full signed certificate JSON
+
+    S8: ORACLE_TARGET env var selects the data source (medical_board | employment).
+    Same enclave, same attestation, same redaction — different oracle.
     """
     # Props L1 — Oracle layer (section 3.1)
-    # fetch_credential calls asyncio.run() internally; fine in FastAPI's thread pool
-    print(f"[api/verify] Starting oracle fetch for license {request.credentials.get('license_number')}")
+    # fetch_credential dispatches to the right oracle based on ORACLE_TARGET
+    print(f"[api/verify] Starting oracle fetch (target={ORACLE_TARGET})")
     try:
         oracle_result = fetch_credential(request.credentials)
     except ValueError as e:
@@ -221,21 +231,24 @@ def verify_credential_endpoint(request: VerifyRequest):
         raise HTTPException(status_code=502, detail=f"Oracle fetch failed: {e}")
 
     raw_credential = oracle_result["credential"]
-    print(f"[api/verify] Oracle returned {len(raw_credential)} fields")
+    oracle_type = oracle_result.get("oracle_type", ORACLE_TARGET)
+    print(f"[api/verify] Oracle returned {len(raw_credential)} fields (type={oracle_type})")
 
     # Props L3 — LLM extraction (section 3.2)
-    # extract_credential_facts calls Ollama synchronously
+    # extract_credential_facts uses oracle_type to select the right extraction config
     try:
-        extraction = extract_credential_facts(raw_credential)
+        extraction = extract_credential_facts(raw_credential, oracle_type=oracle_type)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM extraction failed: {e}")
 
     # Merge extracted facts into the raw credential for redaction input
-    # The LLM may have computed years_active from date fields — use its value
     enriched_credential = {**raw_credential, **extraction["extracted_facts"]}
 
     # Props L4 — Data redaction filter f(X) = X' (section 2.4)
-    redaction_result = apply_redaction_filter(enriched_credential, request.disclosed_fields)
+    # oracle_type determines which fields are identity vs disclosable
+    redaction_result = apply_redaction_filter(
+        enriched_credential, request.disclosed_fields, oracle_type=oracle_type
+    )
     print(
         f"[api/verify] Redaction: disclosed={redaction_result['disclosed_fields']} "
         f"stripped={len(redaction_result['stripped_fields'])} fields"
@@ -251,6 +264,9 @@ def verify_credential_endpoint(request: VerifyRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Attestation failed: {e}")
 
+    # S8 — include oracle_type in certificate so verifier knows the credential domain
+    certificate["oracle_type"] = oracle_type
+
     # Store in memory so GET /api/certificate/:id and GET /api/verify/:id work
     certificates[certificate["certificate_id"]] = certificate
 
@@ -260,7 +276,7 @@ def verify_credential_endpoint(request: VerifyRequest):
     certificate["on_chain_tx"] = tx_hash
     certificate["basescan_url"] = f"https://sepolia.etherscan.io/tx/{tx_hash}" if tx_hash else None
 
-    print(f"[api/verify] Certificate issued: {certificate['certificate_id']}")
+    print(f"[api/verify] Certificate issued: {certificate['certificate_id']} (type={oracle_type})")
     return certificate
 
 
@@ -313,6 +329,7 @@ async def verify_certificate_endpoint(certificate_id: str):
         "model_name": cert.get("model_name"),
         "model_digest": cert.get("model_digest"),
         "oracle_source": cert.get("oracle_source"),
+        "oracle_type": cert.get("oracle_type", "medical_board"),
         "timestamp": cert.get("timestamp"),
         "enclave": cert.get("enclave"),
         "in_real_enclave": cert.get("in_real_enclave"),

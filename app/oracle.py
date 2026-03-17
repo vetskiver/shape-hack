@@ -1,11 +1,16 @@
 """
 Props L1 — Oracle Layer (Props paper, section 3.1)
 ==================================================
-Chromium runs inside the Intel TDX enclave and authenticates against the
-NY State Office of the Professions registry. The licensing board sees a
-normal browser — it never knows Props touched their registry.
+Pluggable oracle system. ORACLE_TARGET env var selects the data source:
+  medical_board  — Chromium scrapes NY State medical board (default)
+  employment     — Mock HR portal returning employment credentials
 
-WHY CHROMIUM INSIDE THE ENCLAVE:
+Both oracle types produce the same envelope format (oracle_authenticated,
+data_hash, etc.), so the downstream pipeline (L3 extraction, L4 redaction,
+L2 attestation) works identically regardless of source. This is Props as
+a protocol: same enclave, same attestation, different oracle.
+
+WHY CHROMIUM INSIDE THE ENCLAVE (medical_board oracle):
 - The TLS handshake happens inside the TEE, so the credential data is
   authenticated at the hardware level before it ever touches our code.
 - TLS certificate fingerprint pinning is enforced inside the enclave —
@@ -34,7 +39,18 @@ import ssl
 import socket
 from datetime import datetime, timezone
 
-from playwright.async_api import async_playwright, Page
+# Playwright is only needed for the medical_board oracle (Chromium-in-TEE).
+# Lazy-imported inside _fetch_credential_async to avoid import errors when
+# running the employment oracle locally without Playwright installed.
+# from playwright.async_api import async_playwright, Page
+
+# ---------------------------------------------------------------------------
+# Oracle Target Selection (S8 — Pluggable Oracle)
+# Props L1 — section 3.1: same pipeline, different data source.
+# medical_board = real Chromium scrape of NYSED registry (default)
+# employment    = mock HR portal (demo: protocol works for any TLS source)
+# ---------------------------------------------------------------------------
+ORACLE_TARGET = os.environ.get("ORACLE_TARGET", "medical_board")
 
 # ---------------------------------------------------------------------------
 # TLS Fingerprint Pinning
@@ -156,6 +172,7 @@ async def _fetch_credential_async(license_number: str, profession: str) -> dict:
     5. Click license number link in results → opens #licenseeDetailModal
     6. Scrape modal with exact id-based selectors
     """
+    from playwright.async_api import async_playwright
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -169,7 +186,7 @@ async def _fetch_credential_async(license_number: str, profession: str) -> dict:
                 "--disable-extensions",
             ],
         )
-        page: Page = await browser.new_page(
+        page = await browser.new_page(
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -220,7 +237,7 @@ async def _fetch_credential_async(license_number: str, profession: str) -> dict:
     return credential
 
 
-async def _scrape_modal(page: Page, license_number: str, profession: str) -> dict:
+async def _scrape_modal(page, license_number: str, profession: str) -> dict:
     """
     Scrapes the #licenseeDetailModal that opens after clicking a result.
 
@@ -327,7 +344,97 @@ async def _scrape_modal(page: Page, license_number: str, profession: str) -> dic
 
 
 # ---------------------------------------------------------------------------
-# Main entrypoint
+# Employment Oracle — Mock HR Portal (S8 — Pluggable Oracle)
+# Props L1 — same oracle contract, different data source.
+# In production this would scrape a real HR portal (Workday, ADP, etc.)
+# using the same Chromium-in-TEE pattern. For the hackathon demo we return
+# realistic mock data to show the pipeline is source-agnostic.
+# ---------------------------------------------------------------------------
+
+# Realistic employment records keyed by employee_id
+_EMPLOYMENT_RECORDS: dict[str, dict] = {
+    "EMP-7291": {
+        "employee_name": "Marcus Webb",
+        "employee_id": "EMP-7291",
+        "ssn_last_four": "4821",
+        "company": "Major Technology Company",
+        "tier": "FAANG",
+        "role": "Senior Software Engineer",
+        "team": "Infrastructure",
+        "department": "Platform Engineering",
+        "years_tenure": 7,
+        "employment_status": "Current employee",
+        "start_date": "March 15, 2019",
+        "office_location": "San Francisco, CA",
+        "manager_name": "Jennifer Liu",
+    },
+    "EMP-3044": {
+        "employee_name": "Priya Chakraborty",
+        "employee_id": "EMP-3044",
+        "ssn_last_four": "9137",
+        "company": "Global Investment Bank",
+        "tier": "Bulge Bracket",
+        "role": "Vice President, Risk Analytics",
+        "team": "Quantitative Risk",
+        "department": "Risk Management",
+        "years_tenure": 11,
+        "employment_status": "Current employee",
+        "start_date": "June 01, 2015",
+        "office_location": "New York, NY",
+        "manager_name": "David Rothstein",
+    },
+    "DEFAULT": {
+        "employee_name": "Anonymous Employee",
+        "employee_id": "EMP-0000",
+        "ssn_last_four": "0000",
+        "company": "Major Technology Company",
+        "tier": "FAANG",
+        "role": "Senior Software Engineer",
+        "team": "Infrastructure",
+        "department": "Platform Engineering",
+        "years_tenure": 7,
+        "employment_status": "Current employee",
+        "start_date": "January 10, 2019",
+        "office_location": "Seattle, WA",
+        "manager_name": "Redacted Manager",
+    },
+}
+
+
+def _fetch_employment_credential(credentials: dict) -> dict:
+    """
+    Props L1 — Mock employment oracle (section 3.1).
+    Same oracle envelope contract as the medical board oracle.
+
+    In production: Chromium authenticates against Workday/ADP HR portal,
+    scrapes the authenticated employment record. Same TLS pinning, same
+    data_hash, same oracle_authenticated flag.
+
+    For hackathon: returns realistic mock data from _EMPLOYMENT_RECORDS.
+    """
+    employee_id = credentials.get("employee_id", "DEFAULT")
+    record = _EMPLOYMENT_RECORDS.get(employee_id, _EMPLOYMENT_RECORDS["DEFAULT"]).copy()
+
+    print(f"[oracle/employment] Fetching employment record for {employee_id}")
+
+    # Props L1/L5 — data integrity hash (same as medical board oracle)
+    raw_json = json.dumps(record, sort_keys=True)
+    data_hash = hashlib.sha256(raw_json.encode()).hexdigest()
+
+    return {
+        "credential": record,
+        "oracle_authenticated": True,
+        "oracle_source": "hr-portal.internal.example.com",
+        "oracle_tls_fingerprint": hashlib.sha256(b"mock-hr-portal-tls-cert").hexdigest().upper(),
+        "data_hash": data_hash,
+        "fetch_timestamp": datetime.now(timezone.utc).isoformat(),
+        "fetch_mode": "employee_lookup",
+        "oracle_type": "employment",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main entrypoint — medical board oracle
 # ---------------------------------------------------------------------------
 
 async def _oracle_main(credentials: dict) -> dict:
@@ -368,54 +475,71 @@ async def _oracle_main(credentials: dict) -> dict:
         "fetch_timestamp": datetime.now(timezone.utc).isoformat(),
         "fetch_mode": "license_lookup",
         "profession": profession,
+        "oracle_type": "medical_board",
     }
 
 
-def fetch_credential(credentials_payload) -> dict:
+def fetch_credential(credentials_payload, oracle_target: str | None = None) -> dict:
     """
     Props L1 — Oracle layer (section 3.1). Public entrypoint.
+    Dispatches to the correct oracle based on ORACLE_TARGET env var
+    (or the oracle_target parameter override).
 
     Args:
-        credentials_payload: dict with {license_number, profession (optional)}
-                             or RSA-encrypted JSON string.
+        credentials_payload: dict with credentials or RSA-encrypted JSON string.
+            medical_board: {license_number, profession (optional)}
+            employment:    {employee_id (optional)}
+        oracle_target: override for ORACLE_TARGET env var (for testing)
 
-    Returns:
-        {
-          credential: {
-            name, address, specialty, license_number, standing, years_active,
-            jurisdiction, initial_registration_date, registered_through,
-            medical_school, degree_date
-          },
-          oracle_authenticated: True,
-          oracle_source: "www.op.nysed.gov",
-          oracle_tls_fingerprint: "...",
-          data_hash: "sha256...",
-          fetch_timestamp: "iso8601",
-          profession: "Physician (060)"
-        }
+    Returns oracle envelope with: credential, oracle_authenticated, oracle_source,
+        oracle_tls_fingerprint, data_hash, fetch_timestamp, oracle_type
     """
     if isinstance(credentials_payload, dict):
         credentials = credentials_payload
     else:
         credentials = decrypt_credentials(credentials_payload)
 
-    return asyncio.run(_oracle_main(credentials))
+    target = (oracle_target or ORACLE_TARGET).strip().lower()
+
+    if target == "employment":
+        return _fetch_employment_credential(credentials)
+    elif target == "medical_board":
+        return asyncio.run(_oracle_main(credentials))
+    else:
+        raise ValueError(
+            f"Unknown ORACLE_TARGET '{target}'. "
+            f"Valid targets: medical_board, employment"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Direct test: python app/oracle.py
+# Set ORACLE_TARGET=employment to test employment oracle.
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import sys
 
-    license_number = os.environ.get("TEST_LICENSE_NUMBER", "209311")
-    profession = os.environ.get("ORACLE_PROFESSION", "Physician (060)")
-    print(f"[oracle] Testing oracle: license={license_number}, profession={profession}")
+    target = os.environ.get("ORACLE_TARGET", "medical_board")
+    print(f"[oracle] Testing oracle: ORACLE_TARGET={target}")
 
-    try:
-        result = fetch_credential({"license_number": license_number, "profession": profession})
-        print("[oracle] SUCCESS:")
-        print(json.dumps(result, indent=2))
-    except Exception as e:
-        print(f"[oracle] FAILED: {e}", file=sys.stderr)
-        sys.exit(1)
+    if target == "employment":
+        employee_id = os.environ.get("TEST_EMPLOYEE_ID", "EMP-7291")
+        print(f"[oracle] Employee ID: {employee_id}")
+        try:
+            result = fetch_credential({"employee_id": employee_id})
+            print("[oracle] SUCCESS:")
+            print(json.dumps(result, indent=2))
+        except Exception as e:
+            print(f"[oracle] FAILED: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        license_number = os.environ.get("TEST_LICENSE_NUMBER", "209311")
+        profession = os.environ.get("ORACLE_PROFESSION", "Physician (060)")
+        print(f"[oracle] license={license_number}, profession={profession}")
+        try:
+            result = fetch_credential({"license_number": license_number, "profession": profession})
+            print("[oracle] SUCCESS:")
+            print(json.dumps(result, indent=2))
+        except Exception as e:
+            print(f"[oracle] FAILED: {e}", file=sys.stderr)
+            sys.exit(1)

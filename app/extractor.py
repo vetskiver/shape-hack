@@ -35,18 +35,18 @@ import httpx
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 MODEL_NAME = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
 
-# Fields that are credential facts (safe to extract)
-CREDENTIAL_FIELDS = {"specialty", "years_active", "jurisdiction", "standing"}
+# ---------------------------------------------------------------------------
+# Per-oracle-type extraction config (S8: pluggable oracle)
+# ---------------------------------------------------------------------------
 
-# Identity fields — never extracted to the disclosed set (L4 strips these)
-IDENTITY_FIELDS = {
+# Medical board extraction
+_MEDICAL_CREDENTIAL_FIELDS = {"specialty", "years_active", "jurisdiction", "standing"}
+_MEDICAL_IDENTITY_FIELDS = {
     "name", "license_number", "address", "date_of_birth",
     "medical_school", "degree_date", "initial_registration_date",
     "registered_through",
 }
-
-# Prompt for the LLM extraction task
-_EXTRACTION_PROMPT = """\
+_MEDICAL_EXTRACTION_PROMPT = """\
 You are a credential extraction assistant running inside a secure enclave.
 Your only task is to extract specific fields from a medical licensing record.
 
@@ -63,6 +63,54 @@ If a field cannot be determined, use null.
 Respond with ONLY the JSON object, nothing else.
 Example: {{"specialty": "Cardiology", "years_active": 17, "jurisdiction": "New York State", "standing": "In good standing"}}
 """
+
+# Employment extraction (S8)
+_EMPLOYMENT_CREDENTIAL_FIELDS = {
+    "company", "tier", "role", "team", "department",
+    "years_tenure", "employment_status",
+}
+_EMPLOYMENT_IDENTITY_FIELDS = {
+    "employee_name", "employee_id", "ssn_last_four",
+    "start_date", "office_location", "manager_name",
+}
+_EMPLOYMENT_EXTRACTION_PROMPT = """\
+You are a credential extraction assistant running inside a secure enclave.
+Your only task is to extract specific fields from an employment record.
+
+Raw employment record (JSON):
+{raw_json}
+
+Extract EXACTLY these seven fields and return ONLY a JSON object with no extra text:
+- company: the employer name (string)
+- tier: company classification e.g. "FAANG", "Bulge Bracket" (string)
+- role: job title (string)
+- team: team name (string)
+- department: department name (string)
+- years_tenure: number of years at the company (integer, compute from start_date if missing)
+- employment_status: current status e.g. "Current employee", "Former employee" (string)
+
+If a field cannot be determined, use null.
+Respond with ONLY the JSON object, nothing else.
+Example: {{"company": "Major Technology Company", "tier": "FAANG", "role": "Senior Software Engineer", "team": "Infrastructure", "department": "Platform Engineering", "years_tenure": 7, "employment_status": "Current employee"}}
+"""
+
+# Registry
+_EXTRACTION_CONFIGS = {
+    "medical_board": {
+        "credential_fields": _MEDICAL_CREDENTIAL_FIELDS,
+        "identity_fields": _MEDICAL_IDENTITY_FIELDS,
+        "prompt": _MEDICAL_EXTRACTION_PROMPT,
+    },
+    "employment": {
+        "credential_fields": _EMPLOYMENT_CREDENTIAL_FIELDS,
+        "identity_fields": _EMPLOYMENT_IDENTITY_FIELDS,
+        "prompt": _EMPLOYMENT_EXTRACTION_PROMPT,
+    },
+}
+
+# Backwards-compatible module-level constants
+CREDENTIAL_FIELDS = _MEDICAL_CREDENTIAL_FIELDS
+IDENTITY_FIELDS = _MEDICAL_IDENTITY_FIELDS
 
 
 # ---------------------------------------------------------------------------
@@ -147,29 +195,54 @@ def wait_for_ollama(max_wait_seconds: int = 120) -> None:
 # Fast-path extraction (no LLM needed if oracle already parsed cleanly)
 # ---------------------------------------------------------------------------
 
-def _extract_direct(raw_credential: dict) -> dict | None:
+def _extract_direct(raw_credential: dict, oracle_type: str = "medical_board") -> dict | None:
     """
     If the oracle already gave us clean structured fields, use them directly.
     This is the fast path — LLM fallback only needed for messy/incomplete data.
     """
-    extracted = {}
-    if raw_credential.get("specialty"):
-        extracted["specialty"] = raw_credential["specialty"]
-    if raw_credential.get("years_active") is not None:
-        extracted["years_active"] = int(raw_credential["years_active"])
-    elif raw_credential.get("initial_registration_date"):
-        try:
-            from dateutil.parser import parse as parse_date
-            reg_date = parse_date(raw_credential["initial_registration_date"])
-            extracted["years_active"] = (datetime.now() - reg_date).days // 365
-        except Exception:
-            pass
-    if raw_credential.get("jurisdiction"):
-        extracted["jurisdiction"] = raw_credential["jurisdiction"]
-    if raw_credential.get("standing"):
-        extracted["standing"] = raw_credential["standing"]
+    config = _EXTRACTION_CONFIGS.get(oracle_type, _EXTRACTION_CONFIGS["medical_board"])
+    credential_fields = config["credential_fields"]
 
-    if len(extracted) == 4:
+    extracted = {}
+
+    if oracle_type == "employment":
+        # Employment fast path
+        for field in credential_fields:
+            val = raw_credential.get(field)
+            if val is not None:
+                if field == "years_tenure":
+                    try:
+                        extracted[field] = int(val)
+                    except (TypeError, ValueError):
+                        pass
+                else:
+                    extracted[field] = val
+            elif field == "years_tenure" and raw_credential.get("start_date"):
+                try:
+                    from dateutil.parser import parse as parse_date
+                    start = parse_date(raw_credential["start_date"])
+                    extracted["years_tenure"] = (datetime.now() - start).days // 365
+                except Exception:
+                    pass
+    else:
+        # Medical board fast path (original logic)
+        if raw_credential.get("specialty"):
+            extracted["specialty"] = raw_credential["specialty"]
+        if raw_credential.get("years_active") is not None:
+            extracted["years_active"] = int(raw_credential["years_active"])
+        elif raw_credential.get("initial_registration_date"):
+            try:
+                from dateutil.parser import parse as parse_date
+                reg_date = parse_date(raw_credential["initial_registration_date"])
+                extracted["years_active"] = (datetime.now() - reg_date).days // 365
+            except Exception:
+                pass
+        if raw_credential.get("jurisdiction"):
+            extracted["jurisdiction"] = raw_credential["jurisdiction"]
+        if raw_credential.get("standing"):
+            extracted["standing"] = raw_credential["standing"]
+
+    if len(extracted) == len(credential_fields):
         return extracted
     return None  # incomplete — fall through to LLM
 
@@ -198,22 +271,18 @@ def _parse_llm_response(response_text: str) -> dict:
 # Public entrypoint
 # ---------------------------------------------------------------------------
 
-def extract_credential_facts(raw_credential: dict) -> dict:
+def extract_credential_facts(raw_credential: dict, oracle_type: str = "medical_board") -> dict:
     """
     Props L3 — Pinned model extraction (section 3.2).
 
     Args:
         raw_credential: the inner credential dict from oracle output
                         (not the full oracle envelope)
+        oracle_type:    which oracle produced this credential (S8: pluggable oracle)
 
     Returns:
         {
-          "extracted_facts": {
-              "specialty": str,
-              "years_active": int,
-              "jurisdiction": str,
-              "standing": str,
-          },
+          "extracted_facts": { ... credential-type-specific fields ... },
           "model_info": {
               "model_name": "llama3.2:3b",
               "model_digest": "sha256...",
@@ -221,20 +290,23 @@ def extract_credential_facts(raw_credential: dict) -> dict:
           "extraction_method": "direct" | "llm",
         }
     """
+    config = _EXTRACTION_CONFIGS.get(oracle_type, _EXTRACTION_CONFIGS["medical_board"])
+    credential_fields = config["credential_fields"]
+
     # Fast path — oracle already gave us clean data
-    direct = _extract_direct(raw_credential)
+    direct = _extract_direct(raw_credential, oracle_type)
     if direct:
-        print(f"[extractor] Fast-path extraction succeeded (no LLM needed)")
+        print(f"[extractor] Fast-path extraction succeeded (oracle_type={oracle_type})")
         return {
             "extracted_facts": direct,
             "model_info": get_model_info(),
             "extraction_method": "direct",
         }
 
-    # LLM path — call Ollama
-    print(f"[extractor] Calling {MODEL_NAME} for extraction")
+    # LLM path — call Ollama with oracle-type-specific prompt
+    print(f"[extractor] Calling {MODEL_NAME} for extraction (oracle_type={oracle_type})")
     raw_json = json.dumps(raw_credential, indent=2)
-    prompt = _EXTRACTION_PROMPT.format(raw_json=raw_json)
+    prompt = config["prompt"].format(raw_json=raw_json)
 
     try:
         response_text = _ollama_generate(prompt)
@@ -243,10 +315,10 @@ def extract_credential_facts(raw_credential: dict) -> dict:
     except Exception as e:
         # Last resort: fall back to direct extraction with whatever we have
         print(f"[extractor] LLM failed ({e}), using partial direct extraction")
-        extracted = _extract_direct(raw_credential) or {}
+        extracted = _extract_direct(raw_credential, oracle_type) or {}
 
-    # Ensure all four keys exist (null if missing)
-    for key in ("specialty", "years_active", "jurisdiction", "standing"):
+    # Ensure all expected keys exist (null if missing)
+    for key in credential_fields:
         extracted.setdefault(key, None)
 
     return {
