@@ -1541,12 +1541,20 @@ function renderCertificate(data) {
   document.getElementById('attest-ts').textContent = ts;
   document.getElementById('attest-sig').textContent = truncate(sig, 36);
 
-  // On-chain link
+  // On-chain block — View 2 centrepiece
   const onchainContainer = document.getElementById('onchain-link-container');
   if (data.on_chain_tx) {
+    const tx = escapeHtml(data.on_chain_tx);
+    const short = tx.slice(0, 10) + '...' + tx.slice(-8);
     onchainContainer.innerHTML =
-      '<a class="onchain-link" href="https://sepolia.basescan.org/tx/' + escapeHtml(data.on_chain_tx) + '" target="_blank">' +
-      '⛓ Certificate stored on Base testnet · View on Basescan</a>';
+      '<div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:10px;padding:1.25rem;margin-top:4px;">' +
+        '<div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⛓ On-chain certificate</div>' +
+        '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">This certificate exists permanently on Ethereum Sepolia testnet</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6;">Even if this server disappears, the certificate hash lives on-chain forever. Anyone can verify it in 2030.</div>' +
+        '<a href="https://sepolia.etherscan.io/tx/' + tx + '" target="_blank" style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--green);font-family:var(--mono);background:rgba(0,200,150,0.1);border:1px solid var(--green-mid);border-radius:6px;padding:9px 16px;text-decoration:none;font-weight:600;">' +
+          '⛓ Transaction: ' + short + '&nbsp;&nbsp;View on Etherscan →' +
+        '</a>' +
+      '</div>';
   } else {
     onchainContainer.innerHTML = '';
   }
@@ -1644,13 +1652,16 @@ function renderVerifier(data) {
   document.getElementById('verifier-model').textContent = cert.model_hash || '—';
   document.getElementById('verifier-ts').textContent = cert.timestamp || '—';
 
-  // On-chain
+  // On-chain — View 4
   const onchain = data.on_chain_tx || (cert && cert.on_chain_tx);
   const onchainContainer = document.getElementById('verifier-onchain');
   if (onchain) {
+    const tx = escapeHtml(onchain);
     onchainContainer.innerHTML =
-      '<a class="onchain-link" href="https://sepolia.basescan.org/tx/' + escapeHtml(onchain) + '" target="_blank">' +
-      '⛓ Certificate confirmed on Base testnet · View on Basescan</a>';
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--green-dim);border:1px solid var(--green-mid);border-radius:8px;padding:12px 16px;">' +
+        '<span style="font-size:12px;color:var(--green);font-family:var(--mono);font-weight:600;">✓ Certificate confirmed on Ethereum Sepolia testnet</span>' +
+        '<a href="https://sepolia.etherscan.io/tx/' + tx + '" target="_blank" style="font-size:11px;color:var(--green);font-family:var(--mono);font-weight:600;white-space:nowrap;text-decoration:underline;">View transaction →</a>' +
+      '</div>';
   }
 }
 
