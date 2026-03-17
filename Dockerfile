@@ -27,6 +27,9 @@ RUN playwright install chromium
 # Copy app code
 COPY app/ .
 
+# Copy frontend files (served by FastAPI at root URL)
+COPY frontend/ ./frontend/
+
 EXPOSE 8080
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

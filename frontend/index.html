@@ -866,72 +866,164 @@
     <div class="page-content">
       <div class="section-tag">§ Props paper — section 3.1 oracle + section 2.4 redaction</div>
 
+      <!-- S8: Oracle source selector — same pipeline, different data source -->
       <div class="form-group">
         <div class="form-label">
-          Registry
-          <span class="form-hint">L1 — authoritative TLS source</span>
+          Oracle source
+          <span class="form-hint">L1 — pluggable oracle (Props as protocol)</span>
         </div>
-        <input class="form-input locked" value="NY State Medical Board — nysed.gov/op" readonly>
-      </div>
-      <div class="form-group">
-        <div class="form-label">
-          License number
-          <span class="form-hint">6-digit NY license number</span>
-        </div>
-        <input class="form-input" id="inp-license" value="209311" placeholder="e.g. 209311">
-      </div>
-      <div class="form-group">
-        <div class="form-label">
-          Profession
-          <span class="form-hint">L1 — NYSED portal profession code</span>
-        </div>
-        <select class="form-input" id="inp-profession">
-          <option value="Physician (060)" selected>Physician (MD/DO)</option>
-          <option value="Dentist (050)">Dentist</option>
-          <option value="Registered Nurse (049)">Registered Nurse</option>
-          <option value="Licensed Clinical Social Worker (029)">Licensed Clinical Social Worker</option>
-          <option value="Physical Therapist (073)">Physical Therapist</option>
-          <option value="Pharmacy (032)">Pharmacist</option>
-          <option value="Psychology (014)">Psychologist</option>
+        <select class="form-input" id="inp-oracle-source" onchange="switchOracleSource()">
+          <option value="medical_board" selected>NY State Medical Board — nysed.gov/op</option>
+          <option value="employment">Employment Portal — HR system (demo)</option>
         </select>
+      </div>
+
+      <!-- MEDICAL BOARD FIELDS -->
+      <div id="fields-medical_board">
+        <div class="form-group">
+          <div class="form-label">
+            License number
+            <span class="form-hint">6-digit NY license number</span>
+          </div>
+          <input class="form-input" id="inp-license" value="209311" placeholder="e.g. 209311">
+        </div>
+        <div class="form-group">
+          <div class="form-label">
+            Profession
+            <span class="form-hint">L1 — NYSED portal profession code</span>
+          </div>
+          <select class="form-input" id="inp-profession">
+            <option value="Physician (060)" selected>Physician (MD/DO)</option>
+            <option value="Dentist (050)">Dentist</option>
+            <option value="Registered Nurse (049)">Registered Nurse</option>
+            <option value="Licensed Clinical Social Worker (029)">Licensed Clinical Social Worker</option>
+            <option value="Physical Therapist (073)">Physical Therapist</option>
+            <option value="Pharmacy (032)">Pharmacist</option>
+            <option value="Psychology (014)">Psychologist</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- EMPLOYMENT FIELDS -->
+      <div id="fields-employment" style="display:none;">
+        <div class="form-group">
+          <div class="form-label">
+            Employee ID
+            <span class="form-hint">HR portal employee identifier</span>
+          </div>
+          <select class="form-input" id="inp-employee-id">
+            <option value="EMP-7291" selected>EMP-7291 — Senior Software Engineer (FAANG)</option>
+            <option value="EMP-3044">EMP-3044 — VP Risk Analytics (Investment Bank)</option>
+          </select>
+        </div>
       </div>
 
       <div class="toggle-section-title">Choose what to disclose — section 2.4 filter f(X) = X'</div>
 
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">Specialty</div>
-          <div class="toggle-example">→ "board-certified cardiologist"</div>
+      <!-- MEDICAL BOARD TOGGLES -->
+      <div id="toggles-medical_board">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Specialty</div>
+            <div class="toggle-example">→ "board-certified cardiologist"</div>
+          </div>
+          <div class="toggle on" data-field="specialty" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle on" data-field="specialty" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Years active</div>
+            <div class="toggle-example">→ "17 years practice"</div>
+          </div>
+          <div class="toggle on" data-field="years_active" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Jurisdiction</div>
+            <div class="toggle-example">→ "New York State" — omit for extra privacy</div>
+          </div>
+          <div class="toggle off" data-field="jurisdiction" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">License standing</div>
+            <div class="toggle-example">→ "in good standing"</div>
+          </div>
+          <div class="toggle on" data-field="standing" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
       </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">Years active</div>
-          <div class="toggle-example">→ "17 years practice"</div>
+
+      <!-- EMPLOYMENT TOGGLES -->
+      <div id="toggles-employment" style="display:none;">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Company</div>
+            <div class="toggle-example">→ "Major Technology Company"</div>
+          </div>
+          <div class="toggle on" data-field="company" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle on" data-field="years_active" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Role</div>
+            <div class="toggle-example">→ "Senior Software Engineer"</div>
+          </div>
+          <div class="toggle on" data-field="role" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">Jurisdiction</div>
-          <div class="toggle-example">→ "New York State" — omit for extra privacy</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Tier</div>
+            <div class="toggle-example">→ "FAANG" — company classification</div>
+          </div>
+          <div class="toggle on" data-field="tier" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle off" data-field="jurisdiction" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Years tenure</div>
+            <div class="toggle-example">→ "7 years at company"</div>
+          </div>
+          <div class="toggle on" data-field="years_tenure" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">License standing</div>
-          <div class="toggle-example">→ "in good standing"</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Team</div>
+            <div class="toggle-example">→ "Infrastructure" — omit for extra privacy</div>
+          </div>
+          <div class="toggle off" data-field="team" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle on" data-field="standing" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Department</div>
+            <div class="toggle-example">→ "Platform Engineering"</div>
+          </div>
+          <div class="toggle off" data-field="department" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Employment status</div>
+            <div class="toggle-example">→ "Current employee"</div>
+          </div>
+          <div class="toggle on" data-field="employment_status" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
       </div>
 
@@ -1009,13 +1101,13 @@
 
         <!-- ATTESTATION BLOCK -->
         <div class="attest-block">
-          <div class="attest-title">TDX Attestation — Phala Cloud enclave measurement</div>
+          <div class="attest-title">TDX Attestation — Phala Cloud Intel TDX enclave</div>
           <div class="attest-row">
-            <span class="attest-key">enclave_measurement</span>
+            <span class="attest-key">payload_hash (in TDX quote)</span>
             <span class="attest-val" id="attest-enclave">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">model_hash</span>
+            <span class="attest-key">model_digest (Props L3)</span>
             <span class="attest-val" id="attest-model">—</span>
           </div>
           <div class="attest-row">
@@ -1023,8 +1115,12 @@
             <span class="attest-val" id="attest-ts">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">signature</span>
+            <span class="attest-key">ed25519_signature</span>
             <span class="attest-val" id="attest-sig">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">enclave_type</span>
+            <span class="attest-val" id="attest-enclave-type">—</span>
           </div>
         </div>
 
@@ -1164,16 +1260,20 @@
     <div class="attest-block">
       <div class="attest-title">Enclave provenance</div>
       <div class="attest-row">
-        <span class="attest-key">enclave_measurement</span>
+        <span class="attest-key">payload_hash (in TDX quote)</span>
         <span class="attest-val" id="verifier-enclave">—</span>
       </div>
       <div class="attest-row">
-        <span class="attest-key">model_hash</span>
+        <span class="attest-key">model_digest (Props L3)</span>
         <span class="attest-val" id="verifier-model">—</span>
       </div>
       <div class="attest-row">
         <span class="attest-key">timestamp</span>
         <span class="attest-val" id="verifier-ts">—</span>
+      </div>
+      <div class="attest-row">
+        <span class="attest-key">enclave_type</span>
+        <span class="attest-val" id="verifier-enclave-type">—</span>
       </div>
     </div>
 
@@ -1262,7 +1362,13 @@
 // ============================================================
 // CONFIG
 // ============================================================
-const BACKEND = 'https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network';
+// Auto-detect: if served from the API server, use same origin; fallback for local file:// dev
+const BACKEND = (() => {
+  if (window.location.protocol === 'https:' || window.location.protocol === 'http:') {
+    return window.location.origin;
+  }
+  return 'https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network';
+})();
 
 // App state
 let currentCertId = null;
@@ -1331,27 +1437,57 @@ function handleHash() {
 // ============================================================
 // VIEW 1 — SUBMIT
 // ============================================================
+
+// S8: Oracle source switching — shows different fields + toggles per oracle type
+function switchOracleSource() {
+  const source = document.getElementById('inp-oracle-source').value;
+  const sources = ['medical_board', 'employment'];
+  sources.forEach(s => {
+    const fields = document.getElementById('fields-' + s);
+    const toggles = document.getElementById('toggles-' + s);
+    if (fields) fields.style.display = s === source ? '' : 'none';
+    if (toggles) toggles.style.display = s === source ? '' : 'none';
+  });
+}
+
 function toggleField(el) {
   el.classList.toggle('on');
   el.classList.toggle('off');
 }
 
 function getDisclosedFields() {
-  const toggles = document.querySelectorAll('.toggle[data-field]');
+  const source = document.getElementById('inp-oracle-source').value;
+  const container = document.getElementById('toggles-' + source);
+  if (!container) return [];
+  const toggles = container.querySelectorAll('.toggle[data-field]');
   return Array.from(toggles)
     .filter(t => t.classList.contains('on'))
     .map(t => t.dataset.field);
 }
 
+function getOracleSource() {
+  return document.getElementById('inp-oracle-source').value;
+}
+
 async function submitVerify() {
-  const licenseNum = document.getElementById('inp-license').value.trim();
-  const profession = document.getElementById('inp-profession').value.trim();
+  const oracleSource = getOracleSource();
   const disclosedFields = getDisclosedFields();
 
-  if (!licenseNum) {
-    document.getElementById('submit-error').innerHTML = errorBox('Please enter a license number.');
-    return;
+  // Build credentials based on oracle source
+  let credentials;
+  if (oracleSource === 'employment') {
+    const employeeId = document.getElementById('inp-employee-id').value.trim();
+    credentials = { employee_id: employeeId, oracle_target: 'employment' };
+  } else {
+    const licenseNum = document.getElementById('inp-license').value.trim();
+    const profession = document.getElementById('inp-profession').value.trim();
+    if (!licenseNum) {
+      document.getElementById('submit-error').innerHTML = errorBox('Please enter a license number.');
+      return;
+    }
+    credentials = { license_number: licenseNum, profession: profession || 'Physician (060)' };
   }
+
   if (disclosedFields.length === 0) {
     document.getElementById('submit-error').innerHTML = errorBox('Please select at least one field to disclose.');
     return;
@@ -1363,10 +1499,7 @@ async function submitVerify() {
   showLoadingOverlay();
 
   const body = {
-    credentials: {
-      license_number: licenseNum,
-      profession: profession || 'Physician (060)'
-    },
+    credentials: credentials,
     disclosed_fields: disclosedFields
   };
 
@@ -1531,15 +1664,18 @@ function renderCertificate(data) {
     });
   }
 
-  // Attestation block
-  const enc = data.enclave_measurement || '—';
-  const mod = data.model_hash || '—';
+  // Attestation block — field names match backend certificate JSON
+  const enc = data.payload_hash || '—';
+  const mod = data.model_digest || data.model_name || '—';
   const ts  = data.timestamp || '—';
   const sig = data.signature || '—';
   document.getElementById('attest-enclave').textContent = truncate(enc, 36);
-  document.getElementById('attest-model').textContent = mod;
+  document.getElementById('attest-model').textContent = truncate(mod, 48);
   document.getElementById('attest-ts').textContent = ts;
   document.getElementById('attest-sig').textContent = truncate(sig, 36);
+  document.getElementById('attest-enclave-type').textContent =
+    (data.enclave || 'unknown') + ' / ' + (data.platform || 'unknown') +
+    (data.in_real_enclave ? ' (real hardware)' : ' (simulated)');
 
   // On-chain block — View 2 centrepiece
   const onchainContainer = document.getElementById('onchain-link-container');
@@ -1646,11 +1782,14 @@ function renderVerifier(data) {
     fieldsContainer.appendChild(row);
   });
 
-  // Attestation provenance (from cert data if available)
+  // Attestation provenance (from cert data if available, with verify response fallback)
   const cert = currentCertData || {};
-  document.getElementById('verifier-enclave').textContent = truncate(cert.enclave_measurement || '—', 36);
-  document.getElementById('verifier-model').textContent = cert.model_hash || '—';
-  document.getElementById('verifier-ts').textContent = cert.timestamp || '—';
+  document.getElementById('verifier-enclave').textContent = truncate(cert.payload_hash || '—', 36);
+  document.getElementById('verifier-model').textContent = truncate(data.model_digest || cert.model_digest || data.model_name || '—', 48);
+  document.getElementById('verifier-ts').textContent = data.timestamp || cert.timestamp || '—';
+  document.getElementById('verifier-enclave-type').textContent =
+    (data.enclave || cert.enclave || 'unknown') + ' / ' + (cert.platform || 'unknown') +
+    (data.in_real_enclave ? ' (real hardware)' : '');
 
   // On-chain — View 4
   const onchain = data.on_chain_tx || (cert && cert.on_chain_tx);
