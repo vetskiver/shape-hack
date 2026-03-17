@@ -53,22 +53,23 @@ certificates: dict[str, dict] = {}
 async def lifespan(app: FastAPI):
     # Props L3 — pull model and wait for Ollama before accepting requests
     # Skip wait if SKIP_OLLAMA_WAIT is set (for local dev without Ollama)
-    if os.environ.get("SKIP_OLLAMA_WAIT", "false").lower() != "true":
+    skip_ollama = os.environ.get("SKIP_OLLAMA_WAIT", "false").lower() == "true"
+    if not skip_ollama:
         wait_for_ollama()
+        try:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                print(f"[startup] Pulling {MODEL_NAME} (no-op if already cached)...")
+                async with client.stream(
+                    "POST",
+                    f"{OLLAMA_BASE_URL}/api/pull",
+                    json={"name": MODEL_NAME, "stream": False},
+                ) as resp:
+                    resp.raise_for_status()
+            print(f"[startup] {MODEL_NAME} ready")
+        except Exception as e:
+            print(f"[startup] Model pull warning: {e}")
     else:
-        print("[startup] SKIP_OLLAMA_WAIT=true — skipping Ollama check")
-    try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            print(f"[startup] Pulling {MODEL_NAME} (no-op if already cached)...")
-            async with client.stream(
-                "POST",
-                f"{OLLAMA_BASE_URL}/api/pull",
-                json={"name": MODEL_NAME, "stream": False},
-            ) as resp:
-                resp.raise_for_status()
-        print(f"[startup] {MODEL_NAME} ready")
-    except Exception as e:
-        print(f"[startup] Model pull warning: {e}")
+        print("[startup] SKIP_OLLAMA_WAIT=true — skipping Ollama check and model pull")
     yield
 
 
@@ -243,10 +244,12 @@ def verify_credential_endpoint(request: VerifyRequest):
     Same enclave, same attestation, same redaction — different oracle.
     """
     # Props L1 — Oracle layer (section 3.1)
-    # fetch_credential dispatches to the right oracle based on ORACLE_TARGET
-    print(f"[api/verify] Starting oracle fetch (target={ORACLE_TARGET})")
+    # S9: oracle_target can be overridden per-request from the frontend
+    request_oracle_target = request.credentials.pop("oracle_target", None)
+    oracle_target = request_oracle_target or ORACLE_TARGET
+    print(f"[api/verify] Starting oracle fetch (target={oracle_target})")
     try:
-        oracle_result = fetch_credential(request.credentials)
+        oracle_result = fetch_credential(request.credentials, oracle_target=oracle_target)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

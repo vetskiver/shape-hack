@@ -866,72 +866,164 @@
     <div class="page-content">
       <div class="section-tag">§ Props paper — section 3.1 oracle + section 2.4 redaction</div>
 
+      <!-- S8: Oracle source selector — same pipeline, different data source -->
       <div class="form-group">
         <div class="form-label">
-          Registry
-          <span class="form-hint">L1 — authoritative TLS source</span>
+          Oracle source
+          <span class="form-hint">L1 — pluggable oracle (Props as protocol)</span>
         </div>
-        <input class="form-input locked" value="NY State Medical Board — nysed.gov/op" readonly>
-      </div>
-      <div class="form-group">
-        <div class="form-label">
-          License number
-          <span class="form-hint">6-digit NY license number</span>
-        </div>
-        <input class="form-input" id="inp-license" value="209311" placeholder="e.g. 209311">
-      </div>
-      <div class="form-group">
-        <div class="form-label">
-          Profession
-          <span class="form-hint">L1 — NYSED portal profession code</span>
-        </div>
-        <select class="form-input" id="inp-profession">
-          <option value="Physician (060)" selected>Physician (MD/DO)</option>
-          <option value="Dentist (050)">Dentist</option>
-          <option value="Registered Nurse (049)">Registered Nurse</option>
-          <option value="Licensed Clinical Social Worker (029)">Licensed Clinical Social Worker</option>
-          <option value="Physical Therapist (073)">Physical Therapist</option>
-          <option value="Pharmacy (032)">Pharmacist</option>
-          <option value="Psychology (014)">Psychologist</option>
+        <select class="form-input" id="inp-oracle-source" onchange="switchOracleSource()">
+          <option value="medical_board" selected>NY State Medical Board — nysed.gov/op</option>
+          <option value="employment">Employment Portal — HR system (demo)</option>
         </select>
+      </div>
+
+      <!-- MEDICAL BOARD FIELDS -->
+      <div id="fields-medical_board">
+        <div class="form-group">
+          <div class="form-label">
+            License number
+            <span class="form-hint">6-digit NY license number</span>
+          </div>
+          <input class="form-input" id="inp-license" value="209311" placeholder="e.g. 209311">
+        </div>
+        <div class="form-group">
+          <div class="form-label">
+            Profession
+            <span class="form-hint">L1 — NYSED portal profession code</span>
+          </div>
+          <select class="form-input" id="inp-profession">
+            <option value="Physician (060)" selected>Physician (MD/DO)</option>
+            <option value="Dentist (050)">Dentist</option>
+            <option value="Registered Nurse (049)">Registered Nurse</option>
+            <option value="Licensed Clinical Social Worker (029)">Licensed Clinical Social Worker</option>
+            <option value="Physical Therapist (073)">Physical Therapist</option>
+            <option value="Pharmacy (032)">Pharmacist</option>
+            <option value="Psychology (014)">Psychologist</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- EMPLOYMENT FIELDS -->
+      <div id="fields-employment" style="display:none;">
+        <div class="form-group">
+          <div class="form-label">
+            Employee ID
+            <span class="form-hint">HR portal employee identifier</span>
+          </div>
+          <select class="form-input" id="inp-employee-id">
+            <option value="EMP-7291" selected>EMP-7291 — Senior Software Engineer (FAANG)</option>
+            <option value="EMP-3044">EMP-3044 — VP Risk Analytics (Investment Bank)</option>
+          </select>
+        </div>
       </div>
 
       <div class="toggle-section-title">Choose what to disclose — section 2.4 filter f(X) = X'</div>
 
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">Specialty</div>
-          <div class="toggle-example">→ "board-certified cardiologist"</div>
+      <!-- MEDICAL BOARD TOGGLES -->
+      <div id="toggles-medical_board">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Specialty</div>
+            <div class="toggle-example">→ "board-certified cardiologist"</div>
+          </div>
+          <div class="toggle on" data-field="specialty" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle on" data-field="specialty" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Years active</div>
+            <div class="toggle-example">→ "17 years practice"</div>
+          </div>
+          <div class="toggle on" data-field="years_active" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Jurisdiction</div>
+            <div class="toggle-example">→ "New York State" — omit for extra privacy</div>
+          </div>
+          <div class="toggle off" data-field="jurisdiction" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">License standing</div>
+            <div class="toggle-example">→ "in good standing"</div>
+          </div>
+          <div class="toggle on" data-field="standing" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
       </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">Years active</div>
-          <div class="toggle-example">→ "17 years practice"</div>
+
+      <!-- EMPLOYMENT TOGGLES -->
+      <div id="toggles-employment" style="display:none;">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Company</div>
+            <div class="toggle-example">→ "Major Technology Company"</div>
+          </div>
+          <div class="toggle on" data-field="company" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle on" data-field="years_active" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Role</div>
+            <div class="toggle-example">→ "Senior Software Engineer"</div>
+          </div>
+          <div class="toggle on" data-field="role" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">Jurisdiction</div>
-          <div class="toggle-example">→ "New York State" — omit for extra privacy</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Tier</div>
+            <div class="toggle-example">→ "FAANG" — company classification</div>
+          </div>
+          <div class="toggle on" data-field="tier" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle off" data-field="jurisdiction" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Years tenure</div>
+            <div class="toggle-example">→ "7 years at company"</div>
+          </div>
+          <div class="toggle on" data-field="years_tenure" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-name">License standing</div>
-          <div class="toggle-example">→ "in good standing"</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Team</div>
+            <div class="toggle-example">→ "Infrastructure" — omit for extra privacy</div>
+          </div>
+          <div class="toggle off" data-field="team" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
-        <div class="toggle on" data-field="standing" onclick="toggleField(this)">
-          <div class="toggle-thumb"></div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Department</div>
+            <div class="toggle-example">→ "Platform Engineering"</div>
+          </div>
+          <div class="toggle off" data-field="department" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-name">Employment status</div>
+            <div class="toggle-example">→ "Current employee"</div>
+          </div>
+          <div class="toggle on" data-field="employment_status" onclick="toggleField(this)">
+            <div class="toggle-thumb"></div>
+          </div>
         </div>
       </div>
 
@@ -1345,27 +1437,57 @@ function handleHash() {
 // ============================================================
 // VIEW 1 — SUBMIT
 // ============================================================
+
+// S8: Oracle source switching — shows different fields + toggles per oracle type
+function switchOracleSource() {
+  const source = document.getElementById('inp-oracle-source').value;
+  const sources = ['medical_board', 'employment'];
+  sources.forEach(s => {
+    const fields = document.getElementById('fields-' + s);
+    const toggles = document.getElementById('toggles-' + s);
+    if (fields) fields.style.display = s === source ? '' : 'none';
+    if (toggles) toggles.style.display = s === source ? '' : 'none';
+  });
+}
+
 function toggleField(el) {
   el.classList.toggle('on');
   el.classList.toggle('off');
 }
 
 function getDisclosedFields() {
-  const toggles = document.querySelectorAll('.toggle[data-field]');
+  const source = document.getElementById('inp-oracle-source').value;
+  const container = document.getElementById('toggles-' + source);
+  if (!container) return [];
+  const toggles = container.querySelectorAll('.toggle[data-field]');
   return Array.from(toggles)
     .filter(t => t.classList.contains('on'))
     .map(t => t.dataset.field);
 }
 
+function getOracleSource() {
+  return document.getElementById('inp-oracle-source').value;
+}
+
 async function submitVerify() {
-  const licenseNum = document.getElementById('inp-license').value.trim();
-  const profession = document.getElementById('inp-profession').value.trim();
+  const oracleSource = getOracleSource();
   const disclosedFields = getDisclosedFields();
 
-  if (!licenseNum) {
-    document.getElementById('submit-error').innerHTML = errorBox('Please enter a license number.');
-    return;
+  // Build credentials based on oracle source
+  let credentials;
+  if (oracleSource === 'employment') {
+    const employeeId = document.getElementById('inp-employee-id').value.trim();
+    credentials = { employee_id: employeeId, oracle_target: 'employment' };
+  } else {
+    const licenseNum = document.getElementById('inp-license').value.trim();
+    const profession = document.getElementById('inp-profession').value.trim();
+    if (!licenseNum) {
+      document.getElementById('submit-error').innerHTML = errorBox('Please enter a license number.');
+      return;
+    }
+    credentials = { license_number: licenseNum, profession: profession || 'Physician (060)' };
   }
+
   if (disclosedFields.length === 0) {
     document.getElementById('submit-error').innerHTML = errorBox('Please select at least one field to disclose.');
     return;
@@ -1377,10 +1499,7 @@ async function submitVerify() {
   showLoadingOverlay();
 
   const body = {
-    credentials: {
-      license_number: licenseNum,
-      profession: profession || 'Physician (060)'
-    },
+    credentials: credentials,
     disclosed_fields: disclosedFields
   };
 
