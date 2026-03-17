@@ -354,6 +354,14 @@ This endpoint is called LIVE during the demo from the browser. It must return re
 
 **Done when:** Calling `POST /api/forge` with each of the three attack types returns a real HTTP 403 with the structured rejection JSON. Test with curl before the demo.
 
+**Status:** ✅ Complete — real SHA-256 hashes, real TLS fingerprint fetch, structured detection blocks in responses. Frontend sends rich simulation payloads.
+
+**Nice-to-have (if time permits):** Wire the forge endpoint into the real pipeline so fraud is caught by actual pipeline guards, not a separate demo endpoint. For example:
+- PDF attack → feed fake data into the real `/api/verify` pipeline → oracle layer rejects because `oracle_authenticated` flag is missing mid-processing
+- Fake registry → oracle actually attempts TLS connection to fake host → `verify_tls_fingerprint()` in oracle.py rejects
+- Tampered → modify credential data after oracle fetch → attestation layer's hash check in `attestation.py` catches the mismatch
+This would mean the pipeline itself rejects fraud architecturally, not a staged endpoint. Much more impressive to technical judges.
+
 ---
 
 ## Session S8 — Pluggable Oracle
