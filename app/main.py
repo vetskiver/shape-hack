@@ -52,7 +52,11 @@ certificates: dict[str, dict] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Props L3 — pull model and wait for Ollama before accepting requests
-    wait_for_ollama()
+    # Skip wait if SKIP_OLLAMA_WAIT is set (for local dev without Ollama)
+    if os.environ.get("SKIP_OLLAMA_WAIT", "false").lower() != "true":
+        wait_for_ollama()
+    else:
+        print("[startup] SKIP_OLLAMA_WAIT=true — skipping Ollama check")
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             print(f"[startup] Pulling {MODEL_NAME} (no-op if already cached)...")
