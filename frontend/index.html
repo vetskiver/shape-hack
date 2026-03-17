@@ -1,0 +1,1727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Props — Anonymous Expert Oracle</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --border2: #333333;
+    --text: #f0f0f0;
+    --muted: #888888;
+    --faint: #444444;
+    --green: #00c896;
+    --green-dim: #003d2d;
+    --green-mid: #00a07a;
+    --red: #ff4444;
+    --red-dim: #2d0000;
+    --blue: #4488ff;
+    --amber: #ffaa00;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Sora', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+  }
+  .nav-logo {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .nav-logo span { color: var(--green); }
+  .nav-tabs { display: flex; gap: 2px; }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--text); background: var(--surface2); }
+  .tab .lbadge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    background: var(--green-dim);
+    color: var(--green);
+  }
+  .nav-info { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  /* VIEWS */
+  .view { display: none; padding: 2.5rem 2rem; max-width: 860px; margin: 0 auto; }
+  .view.active { display: block; }
+
+  /* LAYER PILLS */
+  .layer-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .layer-pill {
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+  .layer-pill.on { background: var(--green-dim); color: var(--green); border-color: var(--green-mid); }
+  .layer-pill.off { background: var(--surface2); color: var(--faint); border-color: var(--border); }
+  .layer-label { font-size: 11px; color: var(--muted); }
+
+  /* SCREEN HEADER */
+  .view-header { margin-bottom: 2rem; }
+  .view-num {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  .view-title { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 0.5rem; }
+  .view-sub { font-size: 14px; color: var(--muted); max-width: 560px; line-height: 1.6; }
+
+  /* BROWSER FRAME */
+  .browser {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .browser-bar {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .d1 { background: #ff5f57; }
+  .d2 { background: #febc2e; }
+  .d3 { background: #28c840; }
+  .url-bar {
+    flex: 1;
+    margin-left: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .url-lock { color: var(--green); font-size: 10px; }
+  .page-content { padding: 2rem; }
+
+  /* FORM ELEMENTS */
+  .form-group { margin-bottom: 1.25rem; }
+  .form-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .form-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--green);
+    background: var(--green-dim);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .form-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    outline: none;
+  }
+  .form-input:focus { border-color: var(--green); }
+  .form-input.locked { color: var(--muted); border-color: var(--border); }
+  select.form-input { appearance: none; cursor: pointer; }
+  select.form-input option { background: var(--surface2); color: var(--text); }
+
+  /* TOGGLE */
+  .toggle-section-title {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+    margin-top: 1.5rem;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row:last-of-type { border-bottom: none; }
+  .toggle-name { font-size: 13px; color: var(--text); }
+  .toggle-example { font-size: 11px; color: var(--muted); margin-top: 1px; font-family: var(--mono); }
+  .toggle {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .toggle.on { background: var(--green); justify-content: flex-end; }
+  .toggle.off { background: var(--faint); justify-content: flex-start; }
+  .toggle-thumb { width: 16px; height: 16px; border-radius: 50%; background: white; }
+
+  /* BUTTONS */
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--green);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    margin-top: 1.5rem;
+    transition: opacity 0.15s;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    padding: 10px 16px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: opacity 0.15s;
+  }
+  .btn-secondary:hover { border-color: var(--green); }
+  .btn-attack {
+    width: 100%;
+    padding: 9px 14px;
+    background: #2d0000;
+    color: var(--red);
+    border: 1px solid #660000;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--mono);
+    margin-top: 12px;
+    transition: opacity 0.15s;
+  }
+  .btn-attack:disabled { opacity: 0.5; cursor: not-allowed; }
+  .encrypt-note {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 10px;
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .dot-green { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+  /* LOADING OVERLAY */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(10,10,10,0.92);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .loading-overlay.visible { display: flex; }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-sm {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--red);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+  .loading-steps { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .loading-step {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--faint);
+    transition: color 0.4s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .loading-step.active { color: var(--green); }
+  .loading-step.done { color: var(--muted); }
+  .step-check { color: var(--green); }
+
+  /* CERTIFICATE CARD */
+  .cert-card {
+    background: var(--surface2);
+    border: 1px solid var(--green-mid);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .cert-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .cert-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--green-dim);
+    border: 1px solid var(--green-mid);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .cert-title { font-size: 14px; font-weight: 600; }
+  .cert-subtitle { font-size: 11px; color: var(--green); font-family: var(--mono); margin-top: 2px; }
+
+  /* REDACTION SECTION — the most important visual in the entire app */
+  .redact-section {
+    margin-bottom: 1.5rem;
+  }
+  .redact-section-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 6px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .redact-section-label.stripped { color: var(--red); border-color: #660000; }
+  .redact-section-label.disclosed { color: var(--green); border-color: var(--green-mid); }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .field-row:last-child { border-bottom: none; }
+  .field-key { font-size: 11px; color: var(--muted); min-width: 140px; }
+
+  /* STRIPPED field — red strikethrough, highly visible */
+  .field-val-stripped {
+    font-size: 13px;
+    font-family: var(--mono);
+    color: #ff6666;
+    text-decoration: line-through;
+    text-decoration-color: var(--red);
+    text-decoration-thickness: 2px;
+    opacity: 0.8;
+  }
+  .field-strip-badge {
+    font-size: 9px;
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid #660000;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: var(--mono);
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  /* DISCLOSED field — green, confirmed */
+  .field-val-disclosed {
+    font-size: 13px;
+    font-family: var(--mono);
+    color: var(--green);
+  }
+  .field-disclose-badge {
+    font-size: 9px;
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid var(--green-mid);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: var(--mono);
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ATTESTATION BLOCK */
+  .attest-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+  }
+  .attest-title {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .attest-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+  }
+  .attest-row:last-child { border-bottom: none; }
+  .attest-key { font-size: 10px; color: var(--muted); font-family: var(--mono); min-width: 160px; }
+  .attest-val { font-size: 10px; color: var(--faint); font-family: var(--mono); word-break: break-all; text-align: right; }
+
+  /* CERT ACTION BAR */
+  .cert-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+  .onchain-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--green);
+    font-family: var(--mono);
+    background: var(--green-dim);
+    border: 1px solid var(--green-mid);
+    border-radius: 6px;
+    padding: 8px 14px;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  /* ARTICLE VIEW */
+  .article-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+  .article-body { padding: 2rem; }
+  .article-category {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.75rem;
+  }
+  .article-title { font-size: 22px; font-weight: 600; line-height: 1.3; margin-bottom: 1rem; letter-spacing: -0.3px; }
+  .article-byline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  /* PROPS ATTESTED BADGE — the centrepiece of View 3 */
+  @keyframes badge-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,200,150,0.0); }
+    50%       { box-shadow: 0 0 0 6px rgba(0,200,150,0.15); }
+  }
+  @keyframes badge-shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .badge-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: linear-gradient(
+      105deg,
+      var(--green-dim) 0%,
+      #005540 40%,
+      var(--green-dim) 100%
+    );
+    background-size: 200% auto;
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--green-mid);
+    font-family: var(--mono);
+    animation: badge-pulse 3s ease-in-out infinite, badge-shimmer 4s linear infinite;
+    letter-spacing: 0.3px;
+  }
+  .badge-verified .badge-shield {
+    font-size: 13px;
+    line-height: 1;
+  }
+  .badge-verified .badge-sep {
+    color: var(--green-mid);
+    font-size: 10px;
+    margin: 0 1px;
+  }
+  .article-date { font-size: 11px; color: var(--muted); }
+  .article-text { font-size: 13px; color: var(--muted); line-height: 1.8; margin-bottom: 1.25rem; }
+  .proof-bar {
+    background: var(--green-dim);
+    border-top: 1px solid var(--green-mid);
+    padding: 14px 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .proof-text { font-size: 11px; color: var(--green); }
+  .proof-text strong { font-weight: 600; display: block; margin-bottom: 2px; }
+  .proof-link {
+    font-size: 11px;
+    color: var(--green);
+    font-family: var(--mono);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: underline;
+    background: none;
+    border: none;
+  }
+
+  /* VERIFIER VIEW */
+  @keyframes verify-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,200,150,0.0), inset 0 0 0 0 rgba(0,200,150,0.0); }
+    50%       { box-shadow: 0 0 24px 4px rgba(0,200,150,0.12), inset 0 0 20px 0 rgba(0,200,150,0.04); }
+  }
+  @keyframes checkmark-pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    70%  { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .verify-status {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid;
+  }
+  .verify-status.valid {
+    background: var(--green-dim);
+    border-color: var(--green-mid);
+    animation: verify-glow 3s ease-in-out infinite;
+  }
+  .verify-status.invalid { background: var(--red-dim); border-color: #660000; }
+  .verify-icon {
+    font-size: 52px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .verify-status.valid .verify-icon {
+    animation: checkmark-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  }
+  .verify-title { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+  .verify-status.valid .verify-title { color: var(--green); }
+  .verify-status.invalid .verify-title { color: var(--red); }
+  .verify-badge-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,200,150,0.1);
+    border: 1px solid var(--green-mid);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green);
+    margin-top: 6px;
+    letter-spacing: 0.3px;
+  }
+  .verify-sub { font-size: 11px; font-family: var(--mono); margin-top: 6px; }
+  .verify-status.valid .verify-sub { color: var(--green-mid); }
+  .verify-status.invalid .verify-sub { color: #cc4444; }
+
+  .identity-note {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 1.25rem 0;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .identity-note .lock-icon { font-size: 20px; }
+
+  /* ADVERSARIAL VIEW */
+  .attack-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 700px) { .attack-grid { grid-template-columns: 1fr; } }
+  .attack-panel {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .attack-num {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--red);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .attack-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .attack-desc { font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 4px; flex: 1; }
+  .attack-layer {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--amber);
+    margin-bottom: 8px;
+  }
+
+  .terminal-box {
+    background: #0d0d0d;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 10px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: #cc4444;
+    line-height: 1.6;
+    word-break: break-word;
+    display: none;
+  }
+  .terminal-box.visible { display: block; }
+  .terminal-header {
+    color: var(--faint);
+    margin-bottom: 6px;
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .http-status {
+    color: var(--red);
+    font-weight: 600;
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+  .layer-caught {
+    margin-top: 8px;
+    padding: 4px 8px;
+    background: #1a0000;
+    border: 1px solid #440000;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #ff8888;
+  }
+
+  /* INSIGHT BOX */
+  .insight {
+    background: var(--surface2);
+    border-left: 3px solid var(--green);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.25rem;
+    margin-top: 1.5rem;
+  }
+  .insight-label { font-size: 9px; font-family: var(--mono); color: var(--green); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .insight-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* SECTION TAG */
+  .section-tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+  }
+
+  /* ERROR */
+  .error-box {
+    background: var(--red-dim);
+    border: 1px solid #660000;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #ff8888;
+    font-family: var(--mono);
+    margin-top: 12px;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--surface2);
+    border: 1px solid var(--green-mid);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 300;
+  }
+  .toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* LOADING PLACEHOLDER */
+  .loading-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    gap: 1rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- FULL-PAGE LOADING OVERLAY (shown during POST /api/verify) -->
+<div class="loading-overlay" id="main-loading">
+  <div class="spinner"></div>
+  <div class="loading-steps">
+    <div class="loading-step" id="lstep-1">
+      <span id="lstep-1-icon">○</span>
+      Connecting to Phala Cloud TDX enclave...
+    </div>
+    <div class="loading-step" id="lstep-2">
+      <span id="lstep-2-icon">○</span>
+      Oracle authenticating against NY Medical Board registry...
+    </div>
+    <div class="loading-step" id="lstep-3">
+      <span id="lstep-3-icon">○</span>
+      LLM extracting credential fields inside enclave...
+    </div>
+    <div class="loading-step" id="lstep-4">
+      <span id="lstep-4-icon">○</span>
+      Generating TDX attestation certificate...
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--muted);font-family:var(--mono);text-align:center;max-width:340px;">
+    This takes 30–60 seconds. The enclave is doing real cryptographic work.
+  </div>
+</div>
+
+<!-- NAVIGATION -->
+<nav class="nav">
+  <div class="nav-logo" onclick="navigate('verify')">⬡ <span>Props</span> — Anonymous Expert Oracle</div>
+  <div class="nav-tabs">
+    <button class="tab" id="nav-verify" onclick="navigate('verify')">
+      01 Verify <span class="lbadge">L1 L4</span>
+    </button>
+    <button class="tab" id="nav-certificate" onclick="navigate('certificate')">
+      02 Certificate <span class="lbadge">L2 L3 L4</span>
+    </button>
+    <button class="tab" id="nav-article" onclick="navigate('article')">
+      03 Published <span class="lbadge">L2 L3</span>
+    </button>
+    <button class="tab" id="nav-verifier" onclick="navigate('verifier')">
+      04 Verifier <span class="lbadge">L2 L3</span>
+    </button>
+    <button class="tab" id="nav-attacks" onclick="navigate('attacks')">
+      05 Adversarial <span class="lbadge">L5</span>
+    </button>
+  </div>
+  <div class="nav-info">Phala Cloud · Intel TDX</div>
+</nav>
+
+<!-- ============================================================
+     VIEW 1 — CREDENTIAL SUBMISSION (Props L1 + L4)
+     ============================================================ -->
+<div class="view" id="view-verify">
+  <div class="view-header">
+    <div class="view-num">Screen 01 — Expert portal</div>
+    <div class="view-title">Prove your expertise</div>
+    <div class="view-sub">Your credentials are verified inside a hardware-isolated enclave. Your identity never leaves your device.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers active:</span>
+    <span class="layer-pill on">L1 — Oracle: authenticated TLS fetch from NY medical board</span>
+    <span class="layer-pill on">L4 — Data redaction: user controls filter f(X) = X'</span>
+    <span class="layer-pill off">L2 — TEE: runs after submission</span>
+    <span class="layer-pill off">L3 — Pinned model: runs after submission</span>
+    <span class="layer-pill off">L5 — Adversarial defense: shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> props.io/verify</div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 3.1 oracle + section 2.4 redaction</div>
+
+      <div class="form-group">
+        <div class="form-label">
+          Registry
+          <span class="form-hint">L1 — authoritative TLS source</span>
+        </div>
+        <input class="form-input locked" value="NY State Medical Board — nysed.gov/op" readonly>
+      </div>
+      <div class="form-group">
+        <div class="form-label">
+          License number
+          <span class="form-hint">6-digit NY license number</span>
+        </div>
+        <input class="form-input" id="inp-license" value="209311" placeholder="e.g. 209311">
+      </div>
+      <div class="form-group">
+        <div class="form-label">
+          Profession
+          <span class="form-hint">L1 — NYSED portal profession code</span>
+        </div>
+        <select class="form-input" id="inp-profession">
+          <option value="Physician (060)" selected>Physician (MD/DO)</option>
+          <option value="Dentist (050)">Dentist</option>
+          <option value="Registered Nurse (049)">Registered Nurse</option>
+          <option value="Licensed Clinical Social Worker (029)">Licensed Clinical Social Worker</option>
+          <option value="Physical Therapist (073)">Physical Therapist</option>
+          <option value="Pharmacy (032)">Pharmacist</option>
+          <option value="Psychology (014)">Psychologist</option>
+        </select>
+      </div>
+
+      <div class="toggle-section-title">Choose what to disclose — section 2.4 filter f(X) = X'</div>
+
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-name">Specialty</div>
+          <div class="toggle-example">→ "board-certified cardiologist"</div>
+        </div>
+        <div class="toggle on" data-field="specialty" onclick="toggleField(this)">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-name">Years active</div>
+          <div class="toggle-example">→ "17 years practice"</div>
+        </div>
+        <div class="toggle on" data-field="years_active" onclick="toggleField(this)">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-name">Jurisdiction</div>
+          <div class="toggle-example">→ "New York State" — omit for extra privacy</div>
+        </div>
+        <div class="toggle off" data-field="jurisdiction" onclick="toggleField(this)">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-name">License standing</div>
+          <div class="toggle-example">→ "in good standing"</div>
+        </div>
+        <div class="toggle on" data-field="standing" onclick="toggleField(this)">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="submit-btn" onclick="submitVerify()">
+        Generate anonymous certificate →
+      </button>
+      <div id="submit-error"></div>
+      <div class="encrypt-note">
+        <span class="dot-green"></span>
+        credentials enter Phala Cloud TDX enclave · identity stripped inside hardware · never stored
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L1 — Oracle layer (section 3.1)</div>
+    <div class="insight-text">The TEE reaches out to the licensing board's TLS endpoint using the user's credentials. The board never knows Props touched their registry. Data provenance is cryptographically established — it came from the authoritative source, not from a document the user could have fabricated.</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VIEW 2 — CERTIFICATE OUTPUT (Props L2 + L3 + L4)
+     ============================================================ -->
+<div class="view" id="view-certificate">
+  <div class="view-header">
+    <div class="view-num">Screen 02 — Certificate output</div>
+    <div class="view-title">Your certificate is ready</div>
+    <div class="view-sub">Identity stripped inside the enclave. Crossed fields were never disclosed. Attach this certificate to anything you publish.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-pill on">L2 — TEE: private computation inside Phala Cloud TDX</span>
+    <span class="layer-pill on">L3 — Pinned model: model hash attested</span>
+    <span class="layer-pill on">L4 — Data redaction: identity stripped, filter applied</span>
+    <span class="layer-pill off">L1 — completed in screen 1</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> <span id="cert-url-display">props.io/certificate/...</span></div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 2.4 data filter + section 3.2 pinned model + TEE attestation</div>
+
+      <div id="cert-loading" class="loading-placeholder">
+        <div class="spinner"></div>
+        <span>Loading certificate...</span>
+      </div>
+
+      <div id="cert-content" style="display:none;">
+        <div class="cert-card">
+          <div class="cert-header">
+            <div class="cert-icon">✦</div>
+            <div>
+              <div class="cert-title">Verified anonymous credential</div>
+              <div class="cert-subtitle" id="cert-id-display">cert_id: loading...</div>
+            </div>
+          </div>
+
+          <!-- STRIPPED fields — driven by raw_fields_stripped from backend -->
+          <div class="redact-section">
+            <div class="redact-section-label stripped">▼ stripped by enclave — identity fields removed</div>
+            <div id="stripped-fields"></div>
+          </div>
+
+          <!-- DISCLOSED fields — driven by credential object from backend -->
+          <div class="redact-section">
+            <div class="redact-section-label disclosed">▲ disclosed — consented fields only</div>
+            <div id="disclosed-fields"></div>
+          </div>
+        </div>
+
+        <!-- ATTESTATION BLOCK -->
+        <div class="attest-block">
+          <div class="attest-title">TDX Attestation — Phala Cloud enclave measurement</div>
+          <div class="attest-row">
+            <span class="attest-key">enclave_measurement</span>
+            <span class="attest-val" id="attest-enclave">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">model_hash</span>
+            <span class="attest-val" id="attest-model">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">timestamp</span>
+            <span class="attest-val" id="attest-ts">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">signature</span>
+            <span class="attest-val" id="attest-sig">—</span>
+          </div>
+        </div>
+
+        <div class="cert-actions" id="cert-actions">
+          <button class="btn-secondary" id="copy-btn" onclick="copyVerifyLink()">Copy verify link</button>
+          <button class="btn-secondary" onclick="openVerifyTab()">Open verify page →</button>
+          <button class="btn-secondary" onclick="downloadCertJSON()">Download JSON</button>
+          <button class="btn-secondary" onclick="navigate('article')">View published article →</button>
+        </div>
+
+        <div id="onchain-link-container" style="margin-top:10px;"></div>
+      </div>
+
+      <div id="cert-error" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L4 — Data redaction (section 2.4)</div>
+    <div class="insight-text">Filter f(X) = X' applied inside the enclave. The fields shown in red were present in the raw credential but stripped before the certificate was produced. Only the green fields exit the enclave. The TEE enforces this — not the frontend code.</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VIEW 3 — PUBLISHED ARTICLE (demo illustration, hardcoded)
+     ============================================================ -->
+<div class="view" id="view-article">
+  <div class="view-header">
+    <div class="view-num">Screen 03 — Published article</div>
+    <div class="view-title">What real-world usage looks like</div>
+    <div class="view-sub">The expert publishes their article. The Props badge attaches the verified credential. Any reader can click verify.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-pill on">L2 — TEE attestation attached to published article</span>
+    <span class="layer-pill on">L3 — Pinned model: credential provenance auditable</span>
+    <span class="layer-pill off">L1 — completed in screen 1</span>
+    <span class="layer-pill off">L4 — completed in screen 2</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="article-card">
+    <div class="article-body">
+      <div class="article-category">Medical · Public health</div>
+      <div class="article-title">This blood thinner is being prescribed at 3× the safe dose for elderly patients</div>
+      <div class="article-byline">
+        <div class="badge-verified">
+          <span class="badge-shield">⬡</span>
+          Props · Attested
+          <span class="badge-sep">|</span>
+          Board-certified cardiologist
+          <span class="badge-sep">·</span>
+          17 yrs practice
+          <span class="badge-sep">·</span>
+          In good standing
+        </div>
+        <div class="article-date">Published anonymously · March 2026</div>
+      </div>
+      <div class="article-text">
+        Over the past eighteen months I have observed a pattern that I believe represents a systematic patient safety failure. At the facility where I work, a widely-prescribed blood thinner is routinely administered to patients over 75 at dosages I have documented to be between 2.8 and 3.4 times the upper bound recommended for patients in this age group.
+      </div>
+      <div class="article-text">
+        I have raised this internally on four separate occasions. Each time I was told the matter was under review. It is not under review. Four patients have died in the last calendar year from complications consistent with this dosage range. I am publishing this because I have no other option. My identity would end my career and my ability to help future patients. My credentials are real. This is verifiable. That has to be enough.
+      </div>
+      <div class="article-text" style="font-style:italic;color:#666;">
+        — anonymous · verified board-certified cardiologist with 17 years of practice
+      </div>
+    </div>
+    <div class="proof-bar">
+      <div class="proof-text">
+        <strong>⬡ Props · Attested — credential verified inside Intel TDX enclave</strong>
+        Board-certified cardiologist · 17 years practice · In good standing · Identity not disclosed · Cannot be recovered by anyone
+      </div>
+      <button class="proof-link" id="article-verify-btn" onclick="goToVerifier()">Verify on-chain →</button>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">The core insight</div>
+    <div class="insight-text">Anonymity without credibility is useless. Credentials without anonymity destroy safety. This article exists because Props gives both simultaneously — for the first time.</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VIEW 4 — PUBLIC VERIFIER (Props L2 + L3)
+     ============================================================ -->
+<div class="view" id="view-verifier">
+  <div class="view-header">
+    <div class="view-num">Screen 04 — Public verifier</div>
+    <div class="view-title">Credential verification</div>
+    <div class="view-sub">Anyone can verify this credential. No login required. The identity of the expert cannot be recovered by anyone.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-pill on">L2 — TEE: signature verified against enclave public key</span>
+    <span class="layer-pill on">L3 — Pinned model: version auditable by anyone</span>
+    <span class="layer-pill off">L1 — completed in screen 1</span>
+    <span class="layer-pill off">L4 — shown in screen 2</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div id="verifier-loading" class="loading-placeholder">
+    <div class="spinner"></div>
+    <span>Verifying certificate signature...</span>
+  </div>
+
+  <div id="verifier-content" style="display:none;">
+    <div class="verify-status valid" id="verify-status-block">
+      <div class="verify-icon" id="verify-icon">✓</div>
+      <div>
+        <div class="verify-title" id="verify-title">Credential verified</div>
+        <div class="verify-badge-line" id="verify-badge-line">
+          <span>⬡</span> Props · Attested
+        </div>
+        <div class="verify-sub" id="verify-sub">Signature valid · Intel TDX enclave authenticated · Identity not disclosed</div>
+      </div>
+    </div>
+
+    <div class="cert-card">
+      <div class="cert-header">
+        <div class="cert-icon">✦</div>
+        <div>
+          <div class="cert-title">Disclosed credential facts</div>
+          <div class="cert-subtitle">These are the only facts that exited the enclave</div>
+        </div>
+      </div>
+      <div id="verifier-credential-fields"></div>
+    </div>
+
+    <div class="identity-note">
+      <span class="lock-icon">🔒</span>
+      <span>Identity: not disclosed — cannot be recovered by anyone, including the Props server operator</span>
+    </div>
+
+    <div class="attest-block">
+      <div class="attest-title">Enclave provenance</div>
+      <div class="attest-row">
+        <span class="attest-key">enclave_measurement</span>
+        <span class="attest-val" id="verifier-enclave">—</span>
+      </div>
+      <div class="attest-row">
+        <span class="attest-key">model_hash</span>
+        <span class="attest-val" id="verifier-model">—</span>
+      </div>
+      <div class="attest-row">
+        <span class="attest-key">timestamp</span>
+        <span class="attest-val" id="verifier-ts">—</span>
+      </div>
+    </div>
+
+    <div id="verifier-onchain" style="margin-top:12px;"></div>
+  </div>
+
+  <div id="verifier-error" style="display:none;"></div>
+</div>
+
+<!-- ============================================================
+     VIEW 5 — ADVERSARIAL DEFENSE (Props L5)
+     ============================================================ -->
+<div class="view" id="view-attacks">
+  <div class="view-header">
+    <div class="view-num">Screen 05 — Adversarial defense demo</div>
+    <div class="view-title">Three attacks. Three architectural rejections.</div>
+    <div class="view-sub">Every attack is rejected by the pipeline itself — not a filter, not a rule. The architecture makes fraud impossible.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers active:</span>
+    <span class="layer-pill on">L5 — Adversarial defense: authenticated inputs reject manipulation</span>
+    <span class="layer-pill on">L1 — Oracle authentication catches forged sources</span>
+    <span class="layer-pill on">L2 — TEE data integrity catches tampered inputs</span>
+  </div>
+
+  <div class="attack-grid">
+    <!-- ATTACK 1 -->
+    <div class="attack-panel">
+      <div class="attack-num">Attack 01</div>
+      <div class="attack-title">Forged PDF</div>
+      <div class="attack-desc">Attacker submits fake credential data directly, bypassing the oracle entirely. Finds a license template online and fills in "Cardiologist".</div>
+      <div class="attack-layer">Expected catch: Props L1 — not oracle-authenticated</div>
+      <button class="btn-attack" id="btn-attack-pdf" onclick="launchAttack('pdf', this)">
+        Launch attack →
+      </button>
+      <div class="terminal-box" id="result-pdf">
+        <div class="terminal-header"><span>POST /api/forge · response</span></div>
+        <div class="http-status">HTTP 403 Forbidden</div>
+        <div id="result-pdf-body"></div>
+      </div>
+    </div>
+
+    <!-- ATTACK 2 -->
+    <div class="attack-panel">
+      <div class="attack-num">Attack 02</div>
+      <div class="attack-title">Fake Registry</div>
+      <div class="attack-desc">Attacker sets up a fake medical board website with a real TLS certificate and tries to point the oracle at it.</div>
+      <div class="attack-layer">Expected catch: Props L1 — TLS fingerprint mismatch</div>
+      <button class="btn-attack" id="btn-attack-reg" onclick="launchAttack('fake_registry', this)">
+        Launch attack →
+      </button>
+      <div class="terminal-box" id="result-fake_registry">
+        <div class="terminal-header"><span>POST /api/forge · response</span></div>
+        <div class="http-status">HTTP 403 Forbidden</div>
+        <div id="result-fake_registry-body"></div>
+      </div>
+    </div>
+
+    <!-- ATTACK 3 -->
+    <div class="attack-panel">
+      <div class="attack-num">Attack 03</div>
+      <div class="attack-title">Tampered Data</div>
+      <div class="attack-desc">Attacker has a real GP license and intercepts the data stream between the oracle and the enclave to swap "general practitioner" for "cardiologist".</div>
+      <div class="attack-layer">Expected catch: Props L2 — data hash mismatch in enclave</div>
+      <button class="btn-attack" id="btn-attack-tam" onclick="launchAttack('tampered', this)">
+        Launch attack →
+      </button>
+      <div class="terminal-box" id="result-tampered">
+        <div class="terminal-header"><span>POST /api/forge · response</span></div>
+        <div class="http-status">HTTP 403 Forbidden</div>
+        <div id="result-tampered-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L5 — Adversarial defense (section 2.3)</div>
+    <div class="insight-text">There is no path to a valid Props certificate that does not go through the real authoritative source, unmodified, inside the enclave. The fraud fails architecturally. Not because of a filter. Because of the pipeline itself.</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const BACKEND = 'https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network';
+
+// App state
+let currentCertId = null;
+let currentCertData = null;
+
+// ============================================================
+// ROUTER — hash-based navigation
+// ============================================================
+function navigate(route, param) {
+  const views = ['verify', 'certificate', 'article', 'verifier', 'attacks'];
+  views.forEach(v => {
+    document.getElementById('view-' + v).classList.remove('active');
+    document.getElementById('nav-' + v).classList.remove('active');
+  });
+  document.getElementById('view-' + route).classList.add('active');
+  document.getElementById('nav-' + route).classList.add('active');
+
+  if (route === 'certificate' && currentCertId) {
+    loadCertificate(currentCertId);
+  }
+  if (route === 'verifier' && currentCertId) {
+    loadVerifier(currentCertId);
+  }
+
+  // Update hash
+  const hash = param ? route + '/' + param : route;
+  window.location.hash = hash;
+  window.scrollTo(0, 0);
+}
+
+function goToVerifier() {
+  if (currentCertId) {
+    navigate('verifier', currentCertId);
+  } else {
+    navigate('verifier');
+    document.getElementById('verifier-loading').style.display = 'none';
+    showEl('verifier-error', errorBox('No certificate loaded. Go to Screen 1 and submit credentials first.'));
+  }
+}
+
+window.addEventListener('hashchange', handleHash);
+window.addEventListener('load', handleHash);
+
+function handleHash() {
+  const hash = window.location.hash.replace('#', '');
+  if (!hash || hash === 'verify') { navigate('verify'); return; }
+  if (hash === 'certificate') { navigate('certificate'); return; }
+  if (hash.startsWith('certificate/')) {
+    const id = hash.split('/')[1];
+    currentCertId = id;
+    navigate('certificate', id);
+    return;
+  }
+  if (hash === 'article') { navigate('article'); return; }
+  if (hash === 'verifier') { navigate('verifier'); return; }
+  if (hash.startsWith('verifier/')) {
+    const id = hash.split('/')[1];
+    currentCertId = id;
+    navigate('verifier', id);
+    return;
+  }
+  if (hash === 'attacks') { navigate('attacks'); return; }
+  navigate('verify');
+}
+
+// ============================================================
+// VIEW 1 — SUBMIT
+// ============================================================
+function toggleField(el) {
+  el.classList.toggle('on');
+  el.classList.toggle('off');
+}
+
+function getDisclosedFields() {
+  const toggles = document.querySelectorAll('.toggle[data-field]');
+  return Array.from(toggles)
+    .filter(t => t.classList.contains('on'))
+    .map(t => t.dataset.field);
+}
+
+async function submitVerify() {
+  const licenseNum = document.getElementById('inp-license').value.trim();
+  const profession = document.getElementById('inp-profession').value.trim();
+  const disclosedFields = getDisclosedFields();
+
+  if (!licenseNum) {
+    document.getElementById('submit-error').innerHTML = errorBox('Please enter a license number.');
+    return;
+  }
+  if (disclosedFields.length === 0) {
+    document.getElementById('submit-error').innerHTML = errorBox('Please select at least one field to disclose.');
+    return;
+  }
+
+  document.getElementById('submit-error').innerHTML = '';
+  document.getElementById('submit-btn').disabled = true;
+
+  showLoadingOverlay();
+
+  const body = {
+    credentials: {
+      license_number: licenseNum,
+      profession: profession || 'Physician (060)'
+    },
+    disclosed_fields: disclosedFields
+  };
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 90000);
+
+    const res = await fetch(BACKEND + '/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+
+    hideLoadingOverlay();
+
+    if (!res.ok) {
+      const text = await res.text();
+      document.getElementById('submit-error').innerHTML = errorBox('API error ' + res.status + ': ' + text);
+      document.getElementById('submit-btn').disabled = false;
+      return;
+    }
+
+    const data = await res.json();
+    currentCertId = data.certificate_id;
+    currentCertData = data;
+
+    navigate('certificate', currentCertId);
+    renderCertificate(data);
+
+  } catch (err) {
+    hideLoadingOverlay();
+    const msg = err.name === 'AbortError'
+      ? 'Request timed out after 90 seconds. The enclave may be busy — try again.'
+      : 'Network error: ' + err.message;
+    document.getElementById('submit-error').innerHTML = errorBox(msg);
+    document.getElementById('submit-btn').disabled = false;
+  }
+}
+
+// Loading overlay state machine
+let loadingPhaseTimer = null;
+function showLoadingOverlay() {
+  const overlay = document.getElementById('main-loading');
+  overlay.classList.add('visible');
+
+  // Reset all steps
+  [1,2,3,4].forEach(i => {
+    const el = document.getElementById('lstep-' + i);
+    el.classList.remove('active', 'done');
+    document.getElementById('lstep-' + i + '-icon').textContent = '○';
+  });
+
+  // Phase 1: immediately show oracle step
+  activateLoadingStep(1);
+
+  // Phase 2: after 10s show LLM step
+  loadingPhaseTimer = setTimeout(() => {
+    doneLoadingStep(1);
+    activateLoadingStep(2);
+    setTimeout(() => {
+      doneLoadingStep(2);
+      activateLoadingStep(3);
+      setTimeout(() => {
+        doneLoadingStep(3);
+        activateLoadingStep(4);
+      }, 15000);
+    }, 15000);
+  }, 10000);
+}
+
+function activateLoadingStep(n) {
+  const el = document.getElementById('lstep-' + n);
+  el.classList.add('active');
+  document.getElementById('lstep-' + n + '-icon').textContent = '▶';
+}
+
+function doneLoadingStep(n) {
+  const el = document.getElementById('lstep-' + n);
+  el.classList.remove('active');
+  el.classList.add('done');
+  document.getElementById('lstep-' + n + '-icon').textContent = '✓';
+}
+
+function hideLoadingOverlay() {
+  if (loadingPhaseTimer) clearTimeout(loadingPhaseTimer);
+  document.getElementById('main-loading').classList.remove('visible');
+}
+
+// ============================================================
+// VIEW 2 — CERTIFICATE
+// ============================================================
+async function loadCertificate(certId) {
+  document.getElementById('cert-loading').style.display = 'flex';
+  document.getElementById('cert-content').style.display = 'none';
+  document.getElementById('cert-error').style.display = 'none';
+
+  if (currentCertData && currentCertData.certificate_id === certId) {
+    renderCertificate(currentCertData);
+    return;
+  }
+
+  try {
+    const res = await fetch(BACKEND + '/api/certificate/' + certId);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    currentCertData = data;
+    renderCertificate(data);
+  } catch (err) {
+    document.getElementById('cert-loading').style.display = 'none';
+    showEl('cert-error', errorBox('Failed to load certificate: ' + err.message));
+  }
+}
+
+function renderCertificate(data) {
+  document.getElementById('cert-loading').style.display = 'none';
+  document.getElementById('cert-content').style.display = 'block';
+
+  const certId = data.certificate_id || 'unknown';
+  document.getElementById('cert-url-display').textContent = 'props.io/certificate/' + certId;
+  document.getElementById('cert-id-display').textContent = 'cert_id: ' + certId;
+
+  // STRIPPED fields — from raw_fields_stripped array (NOT hardcoded)
+  const strippedContainer = document.getElementById('stripped-fields');
+  strippedContainer.innerHTML = '';
+  const stripped = data.raw_fields_stripped || [];
+  if (stripped.length === 0) {
+    strippedContainer.innerHTML = '<div style="font-size:11px;color:var(--faint);padding:8px 0;">No fields were stripped.</div>';
+  } else {
+    stripped.forEach(fieldName => {
+      const row = document.createElement('div');
+      row.className = 'field-row';
+      row.innerHTML =
+        '<span class="field-key">' + formatFieldName(fieldName) + '</span>' +
+        '<span style="display:flex;align-items:center;">' +
+          '<span class="field-val-stripped">██████████</span>' +
+          '<span class="field-strip-badge">stripped</span>' +
+        '</span>';
+      strippedContainer.appendChild(row);
+    });
+  }
+
+  // DISCLOSED fields — from credential object
+  const disclosedContainer = document.getElementById('disclosed-fields');
+  disclosedContainer.innerHTML = '';
+  const credential = data.credential || {};
+  const credKeys = Object.keys(credential);
+  if (credKeys.length === 0) {
+    disclosedContainer.innerHTML = '<div style="font-size:11px;color:var(--faint);padding:8px 0;">No fields were disclosed.</div>';
+  } else {
+    credKeys.forEach(key => {
+      const row = document.createElement('div');
+      row.className = 'field-row';
+      row.innerHTML =
+        '<span class="field-key">' + formatFieldName(key) + '</span>' +
+        '<span style="display:flex;align-items:center;">' +
+          '<span class="field-val-disclosed">' + escapeHtml(String(credential[key])) + '</span>' +
+          '<span class="field-disclose-badge">✓ disclosed</span>' +
+        '</span>';
+      disclosedContainer.appendChild(row);
+    });
+  }
+
+  // Attestation block
+  const enc = data.enclave_measurement || '—';
+  const mod = data.model_hash || '—';
+  const ts  = data.timestamp || '—';
+  const sig = data.signature || '—';
+  document.getElementById('attest-enclave').textContent = truncate(enc, 36);
+  document.getElementById('attest-model').textContent = mod;
+  document.getElementById('attest-ts').textContent = ts;
+  document.getElementById('attest-sig').textContent = truncate(sig, 36);
+
+  // On-chain link
+  const onchainContainer = document.getElementById('onchain-link-container');
+  if (data.on_chain_tx) {
+    onchainContainer.innerHTML =
+      '<a class="onchain-link" href="https://sepolia.basescan.org/tx/' + escapeHtml(data.on_chain_tx) + '" target="_blank">' +
+      '⛓ Certificate stored on Base testnet · View on Basescan</a>';
+  } else {
+    onchainContainer.innerHTML = '';
+  }
+}
+
+function verifyUrl() {
+  return window.location.origin + window.location.pathname + '#verifier/' + currentCertId;
+}
+
+function copyVerifyLink() {
+  const url = verifyUrl();
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('Verify link copied to clipboard');
+  }).catch(() => {
+    prompt('Copy this link:', url);
+  });
+}
+
+function openVerifyTab() {
+  window.open(verifyUrl(), '_blank');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 2500);
+}
+
+function downloadCertJSON() {
+  if (!currentCertData) return;
+  const blob = new Blob([JSON.stringify(currentCertData, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'props-certificate-' + (currentCertData.certificate_id || 'cert') + '.json';
+  a.click();
+}
+
+// ============================================================
+// VIEW 4 — VERIFIER
+// ============================================================
+async function loadVerifier(certId) {
+  document.getElementById('verifier-loading').style.display = 'flex';
+  document.getElementById('verifier-content').style.display = 'none';
+  document.getElementById('verifier-error').style.display = 'none';
+
+  try {
+    // Fetch verify result and full cert in parallel — cert needed for provenance data
+    const [verifyRes, certRes] = await Promise.all([
+      fetch(BACKEND + '/api/verify/' + certId),
+      fetch(BACKEND + '/api/certificate/' + certId)
+    ]);
+    if (!verifyRes.ok) throw new Error('HTTP ' + verifyRes.status);
+    const data = await verifyRes.json();
+    if (certRes.ok) {
+      currentCertData = await certRes.json();
+    }
+    renderVerifier(data);
+  } catch (err) {
+    document.getElementById('verifier-loading').style.display = 'none';
+    showEl('verifier-error', errorBox('Verification failed: ' + err.message));
+  }
+}
+
+function renderVerifier(data) {
+  document.getElementById('verifier-loading').style.display = 'none';
+  document.getElementById('verifier-content').style.display = 'block';
+
+  const valid = data.valid !== false;
+  const statusBlock = document.getElementById('verify-status-block');
+  statusBlock.className = 'verify-status ' + (valid ? 'valid' : 'invalid');
+  document.getElementById('verify-icon').textContent = valid ? '✓' : '✗';
+  document.getElementById('verify-title').textContent = valid ? 'Credential verified' : 'Verification failed';
+  document.getElementById('verify-sub').textContent = valid
+    ? 'Signature valid · Intel TDX enclave authenticated · Identity not disclosed'
+    : 'Signature invalid or certificate tampered';
+  document.getElementById('verify-badge-line').style.display = valid ? '' : 'none';
+
+  // Credential fields
+  const fieldsContainer = document.getElementById('verifier-credential-fields');
+  fieldsContainer.innerHTML = '';
+  const credential = data.credential || {};
+  Object.keys(credential).forEach(key => {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    row.innerHTML =
+      '<span class="field-key">' + formatFieldName(key) + '</span>' +
+      '<span class="field-val-disclosed">' + escapeHtml(String(credential[key])) + '</span>';
+    fieldsContainer.appendChild(row);
+  });
+
+  // Attestation provenance (from cert data if available)
+  const cert = currentCertData || {};
+  document.getElementById('verifier-enclave').textContent = truncate(cert.enclave_measurement || '—', 36);
+  document.getElementById('verifier-model').textContent = cert.model_hash || '—';
+  document.getElementById('verifier-ts').textContent = cert.timestamp || '—';
+
+  // On-chain
+  const onchain = data.on_chain_tx || (cert && cert.on_chain_tx);
+  const onchainContainer = document.getElementById('verifier-onchain');
+  if (onchain) {
+    onchainContainer.innerHTML =
+      '<a class="onchain-link" href="https://sepolia.basescan.org/tx/' + escapeHtml(onchain) + '" target="_blank">' +
+      '⛓ Certificate confirmed on Base testnet · View on Basescan</a>';
+  }
+}
+
+// ============================================================
+// VIEW 5 — ADVERSARIAL ATTACKS
+// ============================================================
+async function launchAttack(type, btnEl) {
+  btnEl.disabled = true;
+  btnEl.textContent = 'Launching...';
+
+  const resultBox = document.getElementById('result-' + type);
+  const resultBody = document.getElementById('result-' + type + '-body');
+  resultBox.classList.remove('visible');
+
+  try {
+    const res = await fetch(BACKEND + '/api/forge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type })
+    });
+
+    // We expect 403 — any response is valid to show
+    let data;
+    try { data = await res.json(); } catch(e) { data = { error: await res.text() }; }
+
+    resultBody.innerHTML =
+      '<div>' + JSON.stringify(data, null, 2).replace(/\n/g, '<br>').replace(/ /g, '&nbsp;') + '</div>';
+
+    if (data.props_layer) {
+      resultBody.innerHTML +=
+        '<div class="layer-caught">Caught by: ' + escapeHtml(data.props_layer) + ' — ' + escapeHtml(data.reason || '') + '</div>';
+    }
+
+    resultBox.classList.add('visible');
+
+  } catch (err) {
+    resultBody.innerHTML = '<div style="color:#ff8888;">Network error: ' + escapeHtml(err.message) + '</div>';
+    resultBox.classList.add('visible');
+  }
+
+  btnEl.disabled = false;
+  btnEl.textContent = 'Launch attack →';
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function errorBox(msg) {
+  return '<div class="error-box">⚠ ' + escapeHtml(msg) + '</div>';
+}
+
+function showEl(id, html) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  el.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function truncate(s, n) {
+  s = String(s);
+  return s.length > n ? s.slice(0, n) + '...' : s;
+}
+
+function formatFieldName(key) {
+  return key.replace(/_/g, ' ');
+}
+</script>
+</body>
+</html>
