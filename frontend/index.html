@@ -1009,13 +1009,13 @@
 
         <!-- ATTESTATION BLOCK -->
         <div class="attest-block">
-          <div class="attest-title">TDX Attestation — Phala Cloud enclave measurement</div>
+          <div class="attest-title">TDX Attestation — Phala Cloud Intel TDX enclave</div>
           <div class="attest-row">
-            <span class="attest-key">enclave_measurement</span>
+            <span class="attest-key">payload_hash (in TDX quote)</span>
             <span class="attest-val" id="attest-enclave">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">model_hash</span>
+            <span class="attest-key">model_digest (Props L3)</span>
             <span class="attest-val" id="attest-model">—</span>
           </div>
           <div class="attest-row">
@@ -1023,8 +1023,12 @@
             <span class="attest-val" id="attest-ts">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">signature</span>
+            <span class="attest-key">ed25519_signature</span>
             <span class="attest-val" id="attest-sig">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">enclave_type</span>
+            <span class="attest-val" id="attest-enclave-type">—</span>
           </div>
         </div>
 
@@ -1164,16 +1168,20 @@
     <div class="attest-block">
       <div class="attest-title">Enclave provenance</div>
       <div class="attest-row">
-        <span class="attest-key">enclave_measurement</span>
+        <span class="attest-key">payload_hash (in TDX quote)</span>
         <span class="attest-val" id="verifier-enclave">—</span>
       </div>
       <div class="attest-row">
-        <span class="attest-key">model_hash</span>
+        <span class="attest-key">model_digest (Props L3)</span>
         <span class="attest-val" id="verifier-model">—</span>
       </div>
       <div class="attest-row">
         <span class="attest-key">timestamp</span>
         <span class="attest-val" id="verifier-ts">—</span>
+      </div>
+      <div class="attest-row">
+        <span class="attest-key">enclave_type</span>
+        <span class="attest-val" id="verifier-enclave-type">—</span>
       </div>
     </div>
 
@@ -1262,7 +1270,13 @@
 // ============================================================
 // CONFIG
 // ============================================================
-const BACKEND = 'https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network';
+// Auto-detect: if served from the API server, use same origin; fallback for local file:// dev
+const BACKEND = (() => {
+  if (window.location.protocol === 'https:' || window.location.protocol === 'http:') {
+    return window.location.origin;
+  }
+  return 'https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network';
+})();
 
 // App state
 let currentCertId = null;
@@ -1531,15 +1545,18 @@ function renderCertificate(data) {
     });
   }
 
-  // Attestation block
-  const enc = data.enclave_measurement || '—';
-  const mod = data.model_hash || '—';
+  // Attestation block — field names match backend certificate JSON
+  const enc = data.payload_hash || '—';
+  const mod = data.model_digest || data.model_name || '—';
   const ts  = data.timestamp || '—';
   const sig = data.signature || '—';
   document.getElementById('attest-enclave').textContent = truncate(enc, 36);
-  document.getElementById('attest-model').textContent = mod;
+  document.getElementById('attest-model').textContent = truncate(mod, 48);
   document.getElementById('attest-ts').textContent = ts;
   document.getElementById('attest-sig').textContent = truncate(sig, 36);
+  document.getElementById('attest-enclave-type').textContent =
+    (data.enclave || 'unknown') + ' / ' + (data.platform || 'unknown') +
+    (data.in_real_enclave ? ' (real hardware)' : ' (simulated)');
 
   // On-chain block — View 2 centrepiece
   const onchainContainer = document.getElementById('onchain-link-container');
@@ -1646,11 +1663,14 @@ function renderVerifier(data) {
     fieldsContainer.appendChild(row);
   });
 
-  // Attestation provenance (from cert data if available)
+  // Attestation provenance (from cert data if available, with verify response fallback)
   const cert = currentCertData || {};
-  document.getElementById('verifier-enclave').textContent = truncate(cert.enclave_measurement || '—', 36);
-  document.getElementById('verifier-model').textContent = cert.model_hash || '—';
-  document.getElementById('verifier-ts').textContent = cert.timestamp || '—';
+  document.getElementById('verifier-enclave').textContent = truncate(cert.payload_hash || '—', 36);
+  document.getElementById('verifier-model').textContent = truncate(data.model_digest || cert.model_digest || data.model_name || '—', 48);
+  document.getElementById('verifier-ts').textContent = data.timestamp || cert.timestamp || '—';
+  document.getElementById('verifier-enclave-type').textContent =
+    (data.enclave || cert.enclave || 'unknown') + ' / ' + (cert.platform || 'unknown') +
+    (data.in_real_enclave ? ' (real hardware)' : '');
 
   // On-chain — View 4
   const onchain = data.on_chain_tx || (cert && cert.on_chain_tx);

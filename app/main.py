@@ -1,26 +1,27 @@
 """
-Props Anonymous Expert Oracle — Session 8 (Pluggable Oracle)
+Props Anonymous Expert Oracle — Session 9 (Full Integration)
 ============================================================
 Full pipeline wired together:
   L1 Oracle → L3 LLM extraction → L4 Redaction → L2 Attestation
 
-S8: ORACLE_TARGET env var selects the data source:
-  medical_board  — Chromium scrapes NY State medical board (default)
-  employment     — Mock HR portal returning employment credentials
-Same enclave, same attestation, same redaction — different oracle.
+S9: Full integration — frontend served from API, field mismatches fixed,
+    verify endpoint returns on-chain data, onchain uses payload_hash.
 
 Endpoints:
-  GET  /api/attestation        — raw TDX quote (S1, unchanged)
-  GET  /api/tdx-key            — enclave signing key hash (S1, unchanged)
+  GET  /                       — serves frontend SPA (index.html)
+  GET  /api/info               — service status + disclosable fields
+  GET  /api/attestation        — raw TDX quote (S1)
+  GET  /api/tdx-key            — enclave signing key hash (S1)
   POST /api/verify             — full pipeline, returns signed certificate (S4)
   GET  /api/certificate/:id    — fetch certificate by ID (S4)
   GET  /api/verify/:id         — verify certificate signature (S4)
-  POST /api/forge              — adversarial rejection demo (S4/S7)
+  POST /api/forge              — adversarial rejection demo (S7)
 """
 
 import hashlib
 import json
 import os
+import pathlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
@@ -28,7 +29,7 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from oracle import fetch_credential, ORACLE_TARGET
@@ -67,7 +68,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Props Oracle", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="Props Oracle", version="0.6.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -110,11 +111,28 @@ class ForgeRequest(BaseModel):
 # GET /  and  GET /health
 # ---------------------------------------------------------------------------
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
+    """Serve the frontend SPA at root URL. Falls back to API info if frontend not found."""
+    # Docker: /app/frontend/index.html | Local dev: ../frontend/index.html
+    candidates = [
+        pathlib.Path(__file__).parent / "frontend" / "index.html",
+        pathlib.Path(__file__).parent.parent / "frontend" / "index.html",
+    ]
+    for frontend_file in candidates:
+        if frontend_file.exists():
+            return HTMLResponse(content=frontend_file.read_text(), status_code=200)
+    return HTMLResponse(
+        content="<h1>Props Oracle API</h1><p>Frontend not found. API is running at /api/info</p>",
+        status_code=200,
+    )
+
+
+@app.get("/api/info")
+async def api_info():
     return {
         "service": "Props Anonymous Expert Oracle",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "status": "running",
         "oracle_target": ORACLE_TARGET,
         "disclosable_fields": get_all_disclosable_fields(ORACLE_TARGET),
@@ -271,8 +289,9 @@ def verify_credential_endpoint(request: VerifyRequest):
     certificates[certificate["certificate_id"]] = certificate
 
     # Props L2 extension — store on-chain (best-effort, never blocks if it fails)
+    # Uses payload_hash (SHA-256 of the signed payload) as the on-chain attestation hash
     from onchain import store_certificate
-    tx_hash = store_certificate(certificate["certificate_id"], certificate["signature"])
+    tx_hash = store_certificate(certificate["certificate_id"], certificate["payload_hash"])
     certificate["on_chain_tx"] = tx_hash
     certificate["basescan_url"] = f"https://sepolia.etherscan.io/tx/{tx_hash}" if tx_hash else None
 
@@ -332,9 +351,14 @@ async def verify_certificate_endpoint(certificate_id: str):
         "oracle_type": cert.get("oracle_type", "medical_board"),
         "timestamp": cert.get("timestamp"),
         "enclave": cert.get("enclave"),
+        "platform": cert.get("platform"),
         "in_real_enclave": cert.get("in_real_enclave"),
         "signing_key_public": cert.get("signing_key_public"),
+        "payload_hash": cert.get("payload_hash"),
         "tdx_quote_present": cert.get("tdx_quote") is not None,
+        # On-chain permanence — returned so verifier page can show tx link
+        "on_chain_tx": cert.get("on_chain_tx"),
+        "basescan_url": cert.get("basescan_url"),
     }
 
 
