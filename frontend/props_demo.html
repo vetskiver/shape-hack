@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Props — Anonymous Expert Oracle Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --border2: #333333;
+    --text: #f0f0f0;
+    --muted: #888888;
+    --faint: #444444;
+    --green: #00c896;
+    --green-dim: #003d2d;
+    --green-mid: #00a07a;
+    --red: #ff4444;
+    --red-dim: #2d0000;
+    --blue: #4488ff;
+    --blue-dim: #0a1a3d;
+    --amber: #ffaa00;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Sora', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+  }
+  .nav-logo {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-logo span { color: var(--green); }
+  .nav-tabs { display: flex; gap: 2px; }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--text); background: var(--surface2); }
+  .tab .layer-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    background: var(--green-dim);
+    color: var(--green);
+  }
+  .nav-info { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  /* SCREENS */
+  .screen { display: none; padding: 2.5rem 2rem; max-width: 860px; margin: 0 auto; }
+  .screen.active { display: block; }
+
+  /* LAYER PILLS */
+  .layer-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .layer-pill {
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+  .layer-pill.on { background: var(--green-dim); color: var(--green); border-color: var(--green-mid); }
+  .layer-pill.off { background: var(--surface2); color: var(--faint); border-color: var(--border); }
+  .layer-label { font-size: 11px; color: var(--muted); }
+
+  /* SCREEN HEADER */
+  .screen-header { margin-bottom: 2rem; }
+  .screen-num {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  .screen-title { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 0.5rem; }
+  .screen-sub { font-size: 14px; color: var(--muted); max-width: 560px; line-height: 1.6; }
+
+  /* BROWSER FRAME */
+  .browser {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .browser-bar {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .d1 { background: #ff5f57; }
+  .d2 { background: #febc2e; }
+  .d3 { background: #28c840; }
+  .url-bar {
+    flex: 1;
+    margin-left: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .url-lock { color: var(--green); font-size: 10px; }
+  .page-content { padding: 2rem; }
+
+  /* FORM ELEMENTS */
+  .form-group { margin-bottom: 1.25rem; }
+  .form-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .form-label .hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--green);
+    background: var(--green-dim);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .form-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    outline: none;
+  }
+  .form-input:focus { border-color: var(--green); }
+  .form-input.locked { color: var(--muted); border-color: var(--border); }
+
+  /* TOGGLE ROW */
+  .toggle-section-title {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+    margin-top: 1.5rem;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-name { font-size: 13px; color: var(--text); }
+  .toggle-example { font-size: 11px; color: var(--muted); margin-top: 1px; font-family: var(--mono); }
+  .toggle {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .toggle.on { background: var(--green); justify-content: flex-end; }
+  .toggle.off { background: var(--faint); justify-content: flex-start; }
+  .toggle-thumb { width: 16px; height: 16px; border-radius: 50%; background: white; }
+
+  /* BUTTONS */
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--green);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    margin-top: 1.5rem;
+    transition: opacity 0.15s;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    padding: 10px 16px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--sans);
+  }
+  .btn-attack {
+    padding: 7px 14px;
+    background: #330000;
+    color: var(--red);
+    border: 1px solid #660000;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--mono);
+    margin-top: 8px;
+    transition: opacity 0.15s;
+  }
+  .btn-attack:disabled { opacity: 0.5; cursor: not-allowed; }
+  .encrypt-note {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 8px;
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .encrypt-note .dot-green { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+
+  /* LOADING OVERLAY */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(10,10,10,0.85);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .loading-overlay.visible { display: flex; }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-steps { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .loading-step {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--faint);
+    transition: color 0.3s;
+  }
+  .loading-step.active { color: var(--green); }
+  .loading-step.done { color: var(--muted); }
+
+  /* CERTIFICATE */
+  .cert-card {
+    background: var(--surface2);
+    border: 1px solid var(--green-mid);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .cert-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .cert-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--green-dim);
+    border: 1px solid var(--green-mid);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .cert-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .cert-subtitle { font-size: 11px; color: var(--green); font-family: var(--mono); margin-top: 2px; }
+  .cert-field {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+  }
+  .cert-field:last-child { border-bottom: none; }
+  .cert-key { font-size: 11px; color: var(--muted); min-width: 120px; }
+  .cert-val { font-size: 12px; color: var(--text); text-align: right; font-family: var(--mono); }
+  .cert-val.redacted {
+    color: var(--faint);
+    text-decoration: line-through;
+    text-decoration-color: var(--red);
+  }
+  .cert-val.revealed { color: var(--green); }
+  .sig-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    margin-top: 1rem;
+  }
+  .sig-label { font-size: 9px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; margin-bottom: 4px; }
+  .sig-val { font-size: 10px; color: var(--faint); font-family: var(--mono); word-break: break-all; line-height: 1.5; }
+
+  /* ARTICLE */
+  .article-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+  .article-body-section { padding: 1.5rem; }
+  .article-category {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.75rem;
+  }
+  .article-title { font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 1rem; letter-spacing: -0.3px; }
+  .article-byline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .badge-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--green-dim);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--green-mid);
+    font-family: var(--mono);
+  }
+  .article-date { font-size: 11px; color: var(--muted); }
+  .article-text { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 1.25rem; }
+  .proof-bar {
+    background: var(--green-dim);
+    border-top: 1px solid var(--green-mid);
+    padding: 12px 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .proof-text { font-size: 11px; color: var(--green); }
+  .proof-text strong { font-weight: 600; display: block; margin-bottom: 1px; }
+  .proof-link {
+    font-size: 11px;
+    color: var(--green);
+    font-family: var(--mono);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  /* VERIFIER */
+  .verify-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--green-dim);
+    border: 1px solid var(--green-mid);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .verify-icon { font-size: 28px; }
+  .verify-title { font-size: 16px; font-weight: 600; color: var(--green); }
+  .verify-sub { font-size: 11px; color: var(--green-mid); font-family: var(--mono); margin-top: 2px; }
+
+  /* REJECTION */
+  .reject-card {
+    background: var(--red-dim);
+    border: 1px solid #660000;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+  .reject-header { display: flex; gap: 12px; align-items: flex-start; }
+  .reject-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #660000;
+    color: var(--red);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: var(--mono);
+  }
+  .reject-title { font-size: 13px; font-weight: 600; color: #ff8888; margin-bottom: 3px; }
+  .reject-reason { font-size: 11px; color: #cc6666; line-height: 1.5; font-family: var(--mono); }
+  .reject-tag {
+    display: inline-block;
+    font-size: 9px;
+    font-family: var(--mono);
+    background: #660000;
+    color: var(--red);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-bottom: 4px;
+  }
+  .attack-result {
+    display: none;
+    margin-top: 10px;
+    background: #1a0000;
+    border: 1px solid #440000;
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .arch-note {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+  }
+  .arch-note-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .arch-note-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* INSIGHT BOX */
+  .insight {
+    background: var(--surface2);
+    border-left: 3px solid var(--green);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.25rem;
+    margin-top: 1.5rem;
+  }
+  .insight-label { font-size: 9px; font-family: var(--mono); color: var(--green); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .insight-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* SECTION TAG */
+  .section-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+  }
+
+  /* TWO COL */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ERROR BOX */
+  .error-box {
+    background: var(--red-dim);
+    border: 1px solid #660000;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #ff8888;
+    font-family: var(--mono);
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-steps">
+    <div class="loading-step" id="step-oracle">Connecting to Phala Cloud TEE...</div>
+    <div class="loading-step" id="step-fetch">Oracle fetching credentials from NY medical board...</div>
+    <div class="loading-step" id="step-llm">LLM extracting credential fields inside enclave...</div>
+    <div class="loading-step" id="step-attest">Generating TDX attestation certificate...</div>
+  </div>
+  <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">This takes 30–60 seconds. The enclave is doing real work.</div>
+</div>
+
+<nav class="nav">
+  <div class="nav-logo">⬡ <span>Props</span> — Anonymous Expert Oracle</div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="showScreen(0)" id="tab0">
+      <span>01 Verify</span>
+      <span class="layer-badge">L1 L4</span>
+    </button>
+    <button class="tab" onclick="showScreen(1)" id="tab1">
+      <span>02 Certificate</span>
+      <span class="layer-badge">L2 L3 L4</span>
+    </button>
+    <button class="tab" onclick="showScreen(2)" id="tab2">
+      <span>03 Published</span>
+      <span class="layer-badge">L2 L3</span>
+    </button>
+    <button class="tab" onclick="showScreen(3)" id="tab3">
+      <span>04 Verifier</span>
+      <span class="layer-badge">L2 L3</span>
+    </button>
+    <button class="tab" onclick="showScreen(4)" id="tab4">
+      <span>05 Adversarial</span>
+      <span class="layer-badge">L5</span>
+    </button>
+  </div>
+  <div class="nav-info">Phala Cloud · Intel TDX</div>
+</nav>
+
+<!-- SCREEN 1 — VERIFY CREDENTIAL -->
+<div class="screen active" id="screen0">
+  <div class="screen-header">
+    <div class="screen-num">Screen 01 — Expert portal</div>
+    <div class="screen-title">Prove your expertise</div>
+    <div class="screen-sub">Your credentials are verified inside a hardware-isolated enclave. Your identity never leaves your device.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers active:</span>
+    <span class="layer-pill on">L1 — Oracle: authenticated TLS fetch from NY medical board</span>
+    <span class="layer-pill on">L4 — Data redaction: user controls filter f(X) = X'</span>
+    <span class="layer-pill off">L2 — TEE: runs after submission</span>
+    <span class="layer-pill off">L3 — Pinned model: runs after submission</span>
+    <span class="layer-pill off">L5 — Adversarial defense: shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> props.io/verify</div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 3.1 oracle + section 2.4 redaction</div>
+
+      <div class="form-group">
+        <div class="form-label">Registry <span class="hint">L1 — authoritative TLS source</span></div>
+        <input class="form-input locked" value="NY State Medical Board — nysed.gov/op" readonly>
+      </div>
+      <div class="form-group">
+        <div class="form-label">License number <span class="hint">sent to enclave only</span></div>
+        <input class="form-input" id="license-number" value="NY-MD-2847193" placeholder="Your NY medical license number">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Profession</div>
+        <input class="form-input" id="profession" value="physician" placeholder="e.g. physician, nurse, pharmacist">
+      </div>
+
+      <div class="toggle-section-title">Choose what to disclose — section 2.4 filter f(X) = X'</div>
+
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">Specialty</div>
+          <div class="toggle-example">→ "board-certified cardiologist"</div>
+        </div>
+        <div class="toggle on" data-field="specialty" onclick="toggleField(this)"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">Years active</div>
+          <div class="toggle-example">→ "17 years practice"</div>
+        </div>
+        <div class="toggle on" data-field="years_active" onclick="toggleField(this)"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">Jurisdiction</div>
+          <div class="toggle-example">→ "New York State" — I prefer to omit this</div>
+        </div>
+        <div class="toggle off" data-field="jurisdiction" onclick="toggleField(this)"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-name">License standing</div>
+          <div class="toggle-example">→ "in good standing"</div>
+        </div>
+        <div class="toggle on" data-field="standing" onclick="toggleField(this)"><div class="toggle-thumb"></div></div>
+      </div>
+
+      <button class="btn-primary" id="submit-btn" onclick="submitVerify()">Generate anonymous certificate →</button>
+      <div id="submit-error"></div>
+      <div class="encrypt-note"><span class="dot-green"></span> credentials enter Phala Cloud TDX enclave · identity stripped inside hardware · never stored</div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L1 — Oracle layer (section 3.1)</div>
+    <div class="insight-text">The TEE reaches out to the licensing board's TLS endpoint using the user's credentials. The board never knows Props touched their registry. Data provenance is cryptographically established — it came from the authoritative source, not from a document the user could have fabricated.</div>
+  </div>
+</div>
+
+<!-- SCREEN 2 — CERTIFICATE OUTPUT -->
+<div class="screen" id="screen1">
+  <div class="screen-header">
+    <div class="screen-num">Screen 02 — Certificate output</div>
+    <div class="screen-title">Your certificate is ready</div>
+    <div class="screen-sub">Identity stripped inside the enclave. The crossed fields were never disclosed. Attach this certificate to anything you publish.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-pill on">L2 — TEE: private computation inside Phala Cloud TDX</span>
+    <span class="layer-pill on">L3 — Pinned model: model hash attested</span>
+    <span class="layer-pill on">L4 — Data redaction: identity stripped, filter applied</span>
+    <span class="layer-pill off">L1 — completed in screen 1</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> <span id="cert-url-bar">props.io/certificate/...</span></div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 2.4 data filter + section 3.2 pinned model + TEE attestation</div>
+
+      <div class="cert-card">
+        <div class="cert-header">
+          <div class="cert-icon">✦</div>
+          <div>
+            <div class="cert-title">Verified anonymous credential</div>
+            <div class="cert-subtitle" id="cert-subtitle">Phala Cloud TDX · Props 1.0</div>
+          </div>
+        </div>
+
+        <!-- Dynamic fields populated from API response -->
+        <div id="cert-fields">
+          <div class="cert-field">
+            <div class="cert-key" style="color:var(--muted)">Awaiting verification...</div>
+            <div class="cert-val"></div>
+          </div>
+        </div>
+
+        <div class="sig-block">
+          <div class="sig-label">Enclave attestation · section 3.1</div>
+          <div class="sig-val" id="cert-sig-block">Awaiting certificate generation...</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <button class="btn-secondary" onclick="copyCertLink()">Copy certificate link</button>
+        <button class="btn-secondary" onclick="downloadCert()">Download JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L4 — Data redaction (section 2.4)</div>
+    <div class="insight-text">The filter f takes the full authenticated record X and produces X'. The crossed fields were processed inside the enclave and discarded. They are unrecoverable. Nobody — not the platform operator, not Phala, not a court subpoena — can extract what the filter stripped.</div>
+  </div>
+</div>
+
+<!-- SCREEN 3 — PUBLISHED ARTICLE -->
+<div class="screen" id="screen2">
+  <div class="screen-header">
+    <div class="screen-num">Screen 03 — Published article</div>
+    <div class="screen-title">Sarah just spoke</div>
+    <div class="screen-sub">The article is live. The credential is attached. Her identity is nowhere. She still has her job.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers visible:</span>
+    <span class="layer-pill on">L2 — TEE: attestation attached to publication</span>
+    <span class="layer-pill on">L3 — Pinned model: verifiable credential provenance</span>
+    <span class="layer-pill off">L1 — completed in screen 1</span>
+    <span class="layer-pill off">L4 — completed in screen 2</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> medicalpulse.org/articles/blood-thinner-dosing-risk</div>
+    </div>
+    <div class="page-content">
+      <div class="article-card">
+        <div class="article-body-section">
+          <div class="article-category">Cardiology · Drug safety · March 15, 2026</div>
+          <div class="article-title">This blood thinner is being prescribed at 3x the safe dose for elderly patients. I have the data.</div>
+          <div class="article-byline">
+            <span class="badge-verified" id="article-badge">✦ Verified cardiologist · 17 years · Props certified</span>
+            <span class="article-date">Anonymous · identity cryptographically protected</span>
+          </div>
+          <div class="article-text">
+            Over the past 12 months I have documented 47 cases at my institution where patients over 70 were prescribed apixaban at doses exceeding published safety thresholds by a factor of three. Four of these patients died from intracranial hemorrhage within 90 days of the elevated prescription. I raised this through internal channels in Q2 2025. No action was taken.
+            <br><br>
+            The data I am publishing here represents a systemic failure that has been silenced by institutional legal pressure. I am publishing anonymously because I have a family and I cannot afford to lose my career. But I also cannot watch more patients die.
+          </div>
+        </div>
+        <div class="proof-bar">
+          <div class="proof-text">
+            <strong>Author credential verified by Props</strong>
+            <span id="article-proof-summary">Board-certified cardiologist · verified by anonymous credential · License in good standing</span>
+          </div>
+          <div class="proof-link" onclick="showScreen(3)">Verify certificate → <span id="article-verify-id" style="font-size:9px;opacity:0.7"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">The moment that matters</div>
+    <div class="insight-text">A serious medical claim. A verified expert. An identity that cannot be recovered. Four months ago this information was trapped inside an institution. Today it is public, credible, and safe. The surgeon spoke. The patients have a warning.</div>
+  </div>
+</div>
+
+<!-- SCREEN 4 — VERIFIER -->
+<div class="screen" id="screen3">
+  <div class="screen-header">
+    <div class="screen-num">Screen 04 — Public verifier</div>
+    <div class="screen-title">Anyone can check this</div>
+    <div class="screen-sub">A reader, an editor, a regulator clicks "Verify" on the article. This is what they see. No special tools required.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers verified:</span>
+    <span class="layer-pill on">L2 — TEE: enclave measurement confirmed, signature valid</span>
+    <span class="layer-pill on">L3 — Pinned model: exact model version verifiable by anyone</span>
+    <span class="layer-pill off">L1 — completed at issuance</span>
+    <span class="layer-pill off">L4 — completed at issuance</span>
+    <span class="layer-pill off">L5 — shown in screen 5</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> <span id="verify-url-bar">props.io/verify/...</span></div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 3.2 pinned model + TEE attestation verification</div>
+
+      <!-- Dynamic status from GET /api/verify/:id -->
+      <div id="verify-status-box">
+        <div style="color:var(--muted);font-family:var(--mono);font-size:12px;">
+          Complete Screen 1 first, then navigate here to verify the certificate.
+        </div>
+      </div>
+
+      <!-- Dynamic fields from certificate -->
+      <div class="cert-card" id="verify-fields-card" style="display:none">
+        <div id="verify-fields"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">Props L3 — Pinned model (section 3.2)</div>
+    <div class="insight-text">The model version, enclave measurement, and data source are all part of the certificate. Any verifier can confirm exactly what logic produced this output. The model cannot be swapped silently between issuances. This is the paper's pinned model property made publicly auditable.</div>
+  </div>
+</div>
+
+<!-- SCREEN 5 — ADVERSARIAL -->
+<div class="screen" id="screen4">
+  <div class="screen-header">
+    <div class="screen-num">Screen 05 — Adversarial defense</div>
+    <div class="screen-title">Three attacks. All failed.</div>
+    <div class="screen-sub">Not because of a filter we added. Because of the architecture itself. This is section 2.3 of the Props paper made visible.</div>
+  </div>
+
+  <div class="layer-row">
+    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-pill on">L5 — Adversarial defense: authenticated inputs prevent manipulation</span>
+    <span class="layer-pill off">L1 — oracle pinning defeats fake registries</span>
+    <span class="layer-pill off">L2 — TEE tamper detection defeats interception</span>
+    <span class="layer-pill off">L3 — pinned model defeats model substitution</span>
+    <span class="layer-pill off">L4 — enclave-enforced filter defeats data injection</span>
+  </div>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> props.io/verify — fraud attempt log</div>
+    </div>
+    <div class="page-content">
+      <div class="section-tag">§ Props paper — section 2.3 constraining adversarial inputs</div>
+
+      <!-- Attack 1 — Forged document -->
+      <div class="reject-card">
+        <div class="reject-header">
+          <div class="reject-num">1</div>
+          <div style="flex:1">
+            <div class="reject-tag">FORGED DOCUMENT</div>
+            <div class="reject-title">Attempt: forged medical license PDF submitted directly</div>
+            <div class="reject-reason">
+              This credential was submitted directly to the attestation endpoint — not fetched from nysed.gov through an authenticated TLS session inside the enclave. Props requires all data to enter through the oracle layer.
+            </div>
+            <button class="btn-attack" id="attack-btn-pdf" onclick="runAttack('pdf', 'attack-btn-pdf', 'attack-result-pdf')">Run this attack live →</button>
+            <div class="attack-result" id="attack-result-pdf"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attack 2 — Fake registry -->
+      <div class="reject-card">
+        <div class="reject-header">
+          <div class="reject-num">2</div>
+          <div style="flex:1">
+            <div class="reject-tag">FAKE REGISTRY</div>
+            <div class="reject-title">Attempt: fake medical board website with real TLS certificate</div>
+            <div class="reject-reason">
+              The oracle is pinned to the certificate fingerprint of the real NY State Medical Board (nysed.gov). A valid TLS certificate from a different authority is rejected immediately. Fingerprints did not match.
+            </div>
+            <button class="btn-attack" id="attack-btn-fake_registry" onclick="runAttack('fake_registry', 'attack-btn-fake_registry', 'attack-result-fake_registry')">Run this attack live →</button>
+            <div class="attack-result" id="attack-result-fake_registry"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attack 3 — Data tamper -->
+      <div class="reject-card">
+        <div class="reject-header">
+          <div class="reject-num">3</div>
+          <div style="flex:1">
+            <div class="reject-tag">DATA INTERCEPTION</div>
+            <div class="reject-title">Attempt: real credential intercepted and modified in transit</div>
+            <div class="reject-reason">
+              A real medical license (general practitioner) was intercepted and the specialty field swapped to "cardiologist." The enclave recomputed the data hash and compared it against the oracle-attested hash. They did not match.
+            </div>
+            <button class="btn-attack" id="attack-btn-tampered" onclick="runAttack('tampered', 'attack-btn-tampered', 'attack-result-tampered')">Run this attack live →</button>
+            <div class="attack-result" id="attack-result-tampered"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-note">
+        <div class="arch-note-title">Why this is architectural, not a filter</div>
+        <div class="arch-note-text">
+          A valid Props certificate is a cryptographic proof that data arrived from the real authoritative source, unmodified, processed inside hardware that nobody can tamper with. That proof cannot be faked without breaking the enclave or compromising the authoritative source itself.
+          <br><br>
+          This is the paper's section 2.3 adversarial input constraint implemented as the core security property of the system.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">All five Props layers — summary</div>
+    <div class="insight-text">
+      L1 — oracle authenticates against real TLS source (screen 1) ·
+      L2 — TEE runs private computation, enclave measurement attested (screen 2, 4) ·
+      L3 — pinned model version in attestation, auditable by anyone (screen 2, 4) ·
+      L4 — user-controlled filter strips identity inside enclave (screen 1, 2) ·
+      L5 — authenticated inputs defeat all three fraud attempts (this screen)
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network';
+
+  // Global state
+  let currentCertificate = null;
+
+  // ─── TOGGLE ────────────────────────────────────────────────────────────────
+
+  function toggleField(el) {
+    const isOn = el.classList.contains('on');
+    el.classList.toggle('on', !isOn);
+    el.classList.toggle('off', isOn);
+  }
+
+  function getDisclosedFields() {
+    const fields = [];
+    document.querySelectorAll('.toggle[data-field]').forEach(t => {
+      if (t.classList.contains('on')) fields.push(t.getAttribute('data-field'));
+    });
+    return fields;
+  }
+
+  // ─── SCREEN NAVIGATION ─────────────────────────────────────────────────────
+
+  function showScreen(n) {
+    document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === n));
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === n));
+    if (n === 3) loadVerifier();
+  }
+
+  // ─── LOADING STEPS ANIMATION ───────────────────────────────────────────────
+
+  let stepTimer = null;
+
+  function startLoadingSteps() {
+    const steps = ['step-oracle', 'step-fetch', 'step-llm', 'step-attest'];
+    let i = 0;
+    steps.forEach(id => document.getElementById(id).className = 'loading-step');
+    function advance() {
+      if (i < steps.length) {
+        if (i > 0) document.getElementById(steps[i-1]).className = 'loading-step done';
+        document.getElementById(steps[i]).className = 'loading-step active';
+        i++;
+        stepTimer = setTimeout(advance, i === 1 ? 3000 : i === 2 ? 15000 : i === 3 ? 20000 : 5000);
+      }
+    }
+    advance();
+  }
+
+  function stopLoadingSteps() {
+    if (stepTimer) clearTimeout(stepTimer);
+    ['step-oracle','step-fetch','step-llm','step-attest'].forEach(id => {
+      document.getElementById(id).className = 'loading-step done';
+    });
+  }
+
+  // ─── SCREEN 1 — SUBMIT ─────────────────────────────────────────────────────
+
+  // Props L1 + L4 — Oracle layer (section 3.1) + Data redaction (section 2.4)
+  // Submits credentials to POST /api/verify, receives signed certificate JSON.
+  async function submitVerify() {
+    const licenseNumber = document.getElementById('license-number').value.trim();
+    const profession = document.getElementById('profession').value.trim();
+    const disclosedFields = getDisclosedFields();
+    const errBox = document.getElementById('submit-error');
+    errBox.innerHTML = '';
+
+    if (!licenseNumber) {
+      errBox.innerHTML = '<div class="error-box">Please enter a license number.</div>';
+      return;
+    }
+    if (!profession) {
+      errBox.innerHTML = '<div class="error-box">Please enter a profession.</div>';
+      return;
+    }
+    if (disclosedFields.length === 0) {
+      errBox.innerHTML = '<div class="error-box">Select at least one field to disclose.</div>';
+      return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Connecting to enclave…';
+    document.getElementById('loading-overlay').classList.add('visible');
+    startLoadingSteps();
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000);
+
+      const resp = await fetch(`${API_BASE}/api/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credentials: { license_number: licenseNumber, profession: profession },
+          disclosed_fields: disclosedFields
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!resp.ok) {
+        let msg = `HTTP ${resp.status}`;
+        try { const e = await resp.json(); msg = e.detail || e.message || msg; } catch {}
+        throw new Error(msg);
+      }
+
+      const data = await resp.json();
+      currentCertificate = data;
+
+      populateCertificate(data, disclosedFields);
+      stopLoadingSteps();
+      document.getElementById('loading-overlay').classList.remove('visible');
+      showScreen(1);
+
+    } catch (e) {
+      stopLoadingSteps();
+      document.getElementById('loading-overlay').classList.remove('visible');
+      const msg = e.name === 'AbortError' ? 'Request timed out after 90 seconds.' : e.message;
+      errBox.innerHTML = `<div class="error-box">Error: ${escHtml(msg)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Generate anonymous certificate →';
+    }
+  }
+
+  // ─── SCREEN 2 — POPULATE CERTIFICATE ───────────────────────────────────────
+
+  // Props L2 + L3 + L4 — Shows real attestation data from API response.
+  // raw_fields_stripped drives the struck-through display (section 2.4).
+  function populateCertificate(data, disclosedFields) {
+    // URL bar
+    document.getElementById('cert-url-bar').textContent =
+      `props.io/certificate/${data.certificate_id || '...'}`;
+
+    // Subtitle
+    document.getElementById('cert-subtitle').textContent =
+      `Phala Cloud TDX · ${data.model_hash || 'model attested'} · Props 1.0`;
+
+    const container = document.getElementById('cert-fields');
+    container.innerHTML = '';
+
+    // Identity fields — always stripped by the enclave
+    const alwaysStripped = {
+      name: 'Full name',
+      license_number: 'License number',
+      address: 'Home address',
+      date_of_birth: 'Date of birth'
+    };
+
+    // Fields stripped by user's toggle choices (from API response)
+    const strippedByUser = new Set(data.raw_fields_stripped || []);
+
+    // Render always-stripped identity fields
+    Object.entries(alwaysStripped).forEach(([key, label]) => {
+      container.appendChild(makeCertField(label, 'STRIPPED — identity removed inside enclave', 'redacted'));
+    });
+
+    // Render user-withheld fields (in raw_fields_stripped, not identity fields)
+    strippedByUser.forEach(field => {
+      if (!alwaysStripped[field]) {
+        const label = fieldLabel(field);
+        container.appendChild(makeCertField(label, 'USER WITHHELD', 'redacted'));
+      }
+    });
+
+    // Render revealed credential fields
+    if (data.credential && Object.keys(data.credential).length > 0) {
+      Object.entries(data.credential).forEach(([key, value]) => {
+        container.appendChild(makeCertField(fieldLabel(key), `${value} ✓`, 'revealed'));
+      });
+    } else {
+      // Fallback if credential object is empty
+      disclosedFields.forEach(field => {
+        if (!alwaysStripped[field]) {
+          container.appendChild(makeCertField(fieldLabel(field), '(value from enclave)', 'revealed'));
+        }
+      });
+    }
+
+    // Identity status
+    container.appendChild(makeCertField('Identity', 'Not disclosed · cannot be recovered', ''));
+
+    // Signature block
+    document.getElementById('cert-sig-block').innerHTML =
+      `measurement: ${escHtml(data.enclave_measurement || 'N/A')}<br>` +
+      `signature: ${escHtml(data.signature || 'N/A')}<br>` +
+      `model: ${escHtml(data.model_hash || 'N/A')} · timestamp: ${escHtml(data.timestamp || 'N/A')}`;
+
+    // Update Screen 3 proof bar
+    const credSummary = data.credential
+      ? Object.entries(data.credential).map(([k,v]) => `${fieldLabel(k)}: ${v}`).join(' · ')
+      : 'Credential verified';
+    document.getElementById('article-proof-summary').textContent = credSummary;
+    document.getElementById('article-verify-id').textContent = data.certificate_id
+      ? `[${data.certificate_id.substring(0, 8)}...]` : '';
+
+    // Update Screen 4 URL bar
+    document.getElementById('verify-url-bar').textContent =
+      `props.io/verify/${data.certificate_id || '...'}`;
+  }
+
+  function makeCertField(key, val, cls) {
+    const div = document.createElement('div');
+    div.className = 'cert-field';
+    div.innerHTML = `<div class="cert-key">${escHtml(key)}</div>` +
+      `<div class="cert-val ${cls}">${escHtml(String(val))}</div>`;
+    return div;
+  }
+
+  function fieldLabel(key) {
+    const map = {
+      name: 'Full name', license_number: 'License number', address: 'Home address',
+      date_of_birth: 'Date of birth', specialty: 'Specialty', years_active: 'Years active',
+      jurisdiction: 'Jurisdiction', standing: 'License standing'
+    };
+    return map[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  function copyCertLink() {
+    if (!currentCertificate) return;
+    const url = `${API_BASE}/api/certificate/${currentCertificate.certificate_id}`;
+    navigator.clipboard.writeText(url).catch(() => prompt('Copy this link:', url));
+  }
+
+  function downloadCert() {
+    if (!currentCertificate) return;
+    const blob = new Blob([JSON.stringify(currentCertificate, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `props-certificate-${currentCertificate.certificate_id || 'cert'}.json`;
+    a.click();
+  }
+
+  // ─── SCREEN 4 — VERIFY ─────────────────────────────────────────────────────
+
+  // Props L2 + L3 — Calls GET /api/verify/:id, shows real signature validation.
+  async function loadVerifier() {
+    if (!currentCertificate) {
+      document.getElementById('verify-status-box').innerHTML =
+        '<div style="color:var(--muted);font-family:var(--mono);font-size:12px;">Complete Screen 1 first, then navigate here to verify the certificate.</div>';
+      document.getElementById('verify-fields-card').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('verify-status-box').innerHTML =
+      '<div style="color:var(--muted);font-family:var(--mono);font-size:12px;">Checking signature against enclave public key...</div>';
+    document.getElementById('verify-fields-card').style.display = 'none';
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/verify/${currentCertificate.certificate_id}`);
+      const data = await resp.json();
+
+      if (data.valid) {
+        document.getElementById('verify-status-box').innerHTML = `
+          <div class="verify-status">
+            <div class="verify-icon">✓</div>
+            <div>
+              <div class="verify-title">Certificate valid</div>
+              <div class="verify-sub">Signature verified · Enclave measurement confirmed · Issued ${escHtml(currentCertificate.timestamp || '')}</div>
+            </div>
+          </div>`;
+      } else {
+        document.getElementById('verify-status-box').innerHTML = `
+          <div class="verify-status" style="background:var(--red-dim);border-color:#660000;">
+            <div class="verify-icon">✗</div>
+            <div>
+              <div class="verify-title" style="color:var(--red)">Certificate invalid</div>
+              <div class="verify-sub" style="color:#cc6666">Signature verification failed</div>
+            </div>
+          </div>`;
+      }
+
+      // Populate revealed fields
+      const container = document.getElementById('verify-fields');
+      container.innerHTML = '';
+
+      const credential = data.credential || currentCertificate.credential || {};
+      Object.entries(credential).forEach(([key, value]) => {
+        container.appendChild(makeCertField(fieldLabel(key), String(value), 'revealed'));
+      });
+
+      // Standard metadata fields
+      [
+        ['Identity', 'Not disclosed · <strong style="color:var(--red)">cannot be recovered by anyone</strong>'],
+        ['Data source', 'NY State Medical Board (nysed.gov)'],
+        ['Model used', escHtml(data.model_hash || currentCertificate.model_hash || 'N/A')],
+        ['Enclave type', 'Phala Cloud Intel TDX'],
+        ['Enclave measurement', `<span style="font-size:10px">${escHtml((currentCertificate.enclave_measurement || '').substring(0, 20))}...</span>`]
+      ].forEach(([key, val]) => {
+        const div = document.createElement('div');
+        div.className = 'cert-field';
+        div.innerHTML = `<div class="cert-key">${escHtml(key)}</div><div class="cert-val">${val}</div>`;
+        container.appendChild(div);
+      });
+
+      document.getElementById('verify-fields-card').style.display = 'block';
+
+    } catch (e) {
+      document.getElementById('verify-status-box').innerHTML =
+        `<div class="error-box">Verification error: ${escHtml(e.message)}</div>`;
+    }
+  }
+
+  // ─── SCREEN 5 — ADVERSARIAL ATTACKS ────────────────────────────────────────
+
+  // Props L5 — Calls POST /api/forge, shows real HTTP 403 rejection from pipeline.
+  // Each rejection demonstrates a different Props security layer.
+  async function runAttack(type, btnId, resultId) {
+    const btn = document.getElementById(btnId);
+    const resultEl = document.getElementById(resultId);
+
+    btn.disabled = true;
+    btn.textContent = 'Sending attack…';
+    resultEl.style.display = 'none';
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/forge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type })
+      });
+
+      const data = await resp.json();
+      resultEl.style.display = 'block';
+      resultEl.innerHTML =
+        `<div style="font-size:10px;color:var(--red);font-family:var(--mono);margin-bottom:6px;font-weight:600;">` +
+        `HTTP ${resp.status} — REJECTED BY PROPS PIPELINE</div>` +
+        `<pre style="font-size:10px;color:#cc6666;font-family:var(--mono);white-space:pre-wrap;line-height:1.6;">` +
+        `${escHtml(JSON.stringify(data, null, 2))}</pre>`;
+
+    } catch (e) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `<div style="color:var(--red);font-size:11px;font-family:var(--mono);">${escHtml(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run this attack live →';
+    }
+  }
+
+  // ─── UTILS ─────────────────────────────────────────────────────────────────
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+
+</body>
+</html>

@@ -179,39 +179,103 @@ Give me complete working code for all files.
 
 ---
 
-## Session S5 — Frontend Connected to Real Backend
+## Session S5 — Frontend Application
 **Owner:** Builder 2
 **Day:** Day 3
-**Goal:** All five screens in props_demo.html making real API calls
+**Goal:** Build a real frontend web application connected to the live backend
 
-Before starting: S4 must be complete. You need the backend URL from Phala Cloud.
+Before starting: S4 must be complete and all endpoints confirmed working.
+
+**Context on props_demo.html:**
+The file `frontend/props_demo.html` is a visual reference only. It shows step by step what the MVP is about and how L1 through L5 address all aspects of the Props paper. Use it to understand the design, the five screens, and the product story. Do not wire it up. Build a new application that actually works.
+
+**Known backend details:**
+- Backend URL: `https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network`
+- `POST /api/verify` takes 30-60 seconds (Chromium scraping + LLM inference). Use fetch() with a 90 second timeout or no timeout at all. Show a loading state.
+- Credentials are sent as plain JSON `{license_number, profession}` — encryption not yet wired
+- Response includes `raw_fields_stripped[]` — use this array to drive the struck-through display on Screen 2
+- CORS headers must be enabled on the backend — remind Builder 1 to add them to FastAPI
 
 **Session Prompt:**
 ```
 [PASTE CLAUDE.md HERE FIRST]
 
-The backend is running on Phala Cloud at: [INSERT YOUR PHALA URL HERE]
+The backend is live at:
+https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network
 
-Endpoints available:
-POST /api/verify — accepts {credentials: {username, password}, disclosed_fields: [array]}
-GET /api/certificate/:id — returns certificate JSON including raw_fields_stripped array
-GET /api/verify/:id — returns {valid: bool, credential: {...}}
-POST /api/forge — accepts {type: "pdf"|"fake_registry"|"tampered"} returns 403
+Confirmed endpoints:
+POST /api/verify
+  Request:  {license_number: "NY-MD-2847193", profession: "doctor", disclosed_fields: ["specialty", "years_active", "standing"]}
+  Response: {certificate_id, credential, model_hash, enclave_measurement, timestamp, signature, raw_fields_stripped}
+  Note: takes 30-60 seconds — use 90s timeout, show loading state
 
-I need to update frontend/props_demo.html so all five screens make real API calls.
+GET /api/certificate/:id
+  Response: full certificate JSON
 
-Critical requirements:
-- Screen 1: toggle switches must build the disclosed_fields array sent to POST /api/verify
-- Screen 2: struck-through fields must come from raw_fields_stripped in the response (NOT hardcoded)
-- Screen 3: Props badge must use the real certificate_id in the verify URL
-- Screen 4: must call GET /api/verify/:id and show real signature validation result
-- Screen 5: must call POST /api/forge with each attack type and show the real 403 response
+GET /api/verify/:id
+  Response: {valid: bool, credential: {...}, on_chain_tx: "..."}
 
-The reference file is frontend/props_demo.html. Update it with real fetch() calls to the backend.
-Give me the complete updated HTML file.
+POST /api/forge
+  Request:  {type: "pdf" | "fake_registry" | "tampered"}
+  Response: HTTP 403 with {rejected, props_layer, reason, attack_type}
+
+Reference: frontend/props_demo.html shows the visual design, the five screens, and how L1-L5 
+map to each screen. Use it as a design guide and product reference. Do not modify it.
+Build a new file: frontend/index.html
+
+Build a single-page application with five views using vanilla JS and fetch(). 
+No React, no build step, no npm. Must work when opened directly in a browser.
+
+VIEW 1 — Credential submission (Props L1 + L4)
+- Registry field locked to "NY State Medical Board"
+- License number input field
+- Profession input field  
+- Four toggle switches: Specialty / Years active / Jurisdiction / License standing
+- Toggles build the disclosed_fields array
+- Submit button calls POST /api/verify
+- Loading spinner with message "Fetching credentials from NY Medical Board..." 
+  then "Running LLM extraction inside enclave..." — show this for the full 30-60s wait
+- On success: navigate to View 2
+
+VIEW 2 — Certificate output (Props L2 + L3 + L4)
+- Fetch GET /api/certificate/:id on load
+- Two clear sections:
+  STRIPPED (from raw_fields_stripped array): name, license_number, address shown 
+  with red strikethrough — these came from the backend, not hardcoded
+  DISCLOSED (from credential object): specialty, years, standing shown in green
+- Attestation block: enclave_measurement, model_hash, timestamp, signature
+- On-chain tx link to Basescan if on_chain_tx is present
+- "Copy verify link" button — copies the /verify/:id URL
+- "Download certificate JSON" button
+
+VIEW 3 — Published article (demo illustration only)
+- Mock article page with Dr Sarah Chen's story about drug overprescription
+- Byline shows Props verified badge: "Verified board-certified cardiologist · Props certified"
+- "Verify credential →" link goes to View 4
+- This view is hardcoded for demo purposes — it shows what real-world usage looks like
+
+VIEW 4 — Public verifier (Props L2 + L3)
+- Fetch GET /api/verify/:id on load
+- Large green checkmark if valid, red X if not
+- Three disclosed credential facts
+- "Identity: not disclosed — cannot be recovered by anyone"
+- Enclave measurement and model hash
+- On-chain confirmation with Basescan link
+- No login required — any reader can open this URL
+
+VIEW 5 — Adversarial defense demo (Props L5)
+- Three attack panels
+- Each has a "Launch attack →" button
+- Clicking calls POST /api/forge with the relevant type
+- Shows the real HTTP 403 JSON response in a dark terminal-style box
+- Shows which Props layer caught it (from props_layer field in response)
+- All three must call the real API — no hardcoded responses
+
+Dark theme matching props_demo.html visual style.
+Give me the complete frontend/index.html file.
 ```
 
-**Done when:** Opening props_demo.html in a browser, going through all five screens, shows real data from the backend. The struck-through fields on Screen 2 match what the backend actually stripped.
+**Done when:** Opening index.html pointed at the Phala Cloud URL, going through all five views with a real license number, shows real backend data. The struck-through fields on View 2 come from `raw_fields_stripped` in the API response. View 5 shows real HTTP 403 responses from the live API.
 
 ---
 
