@@ -159,7 +159,7 @@ curl https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phal
 | CVM ID | `6faa38933e632ca8dd2795fa68ad043c0bb6ad82` |
 | App ID | `6faa38933e632ca8dd2795fa68ad043c0bb6ad82` |
 | Public URL | `https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network` |
-| Docker image | `vetskiver/props-oracle:s4` (current) |
+| Docker image | `vetskiver/props-oracle:s4.1` (current) |
 
 ### Checking logs when something breaks
 
