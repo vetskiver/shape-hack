@@ -1676,24 +1676,67 @@ async function launchAttack(type, btnEl) {
   const resultBody = document.getElementById('result-' + type + '-body');
   resultBox.classList.remove('visible');
 
+  // S7: send realistic simulation payloads so the backend can do actual detection
+  const ATTACK_PAYLOADS = {
+    pdf: {
+      type: 'pdf',
+      data: {
+        // Forged credential submitted directly — no oracle_authenticated flag
+        name: 'Dr. James Faker',
+        license_number: 'NY-MD-FAKE-001',
+        specialty: 'Cardiology',
+        years_active: 20,
+        jurisdiction: 'New York State',
+        standing: 'Active',
+        // oracle_authenticated intentionally absent — the pipeline detects this
+      }
+    },
+    fake_registry: {
+      type: 'fake_registry',
+      data: {
+        // Oracle pointed at a fake host — TLS fingerprint won't match NYSED
+        target_hostname: 'httpbin.org'
+      }
+    },
+    tampered: {
+      type: 'tampered',
+      data: {
+        // Original credential from oracle — SHA-256 computed at fetch time
+        original: { specialty: 'General Practitioner', years_active: 5, jurisdiction: 'New York State', standing: 'Active' },
+        // Tampered version — attacker changed specialty and years to appear more credible
+        tampered: { specialty: 'Cardiology', years_active: 17, jurisdiction: 'New York State', standing: 'Active' }
+      }
+    }
+  };
+
   try {
+    const payload = ATTACK_PAYLOADS[type] || { type: type };
     const res = await fetch(BACKEND + '/api/forge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: type })
+      body: JSON.stringify(payload)
     });
 
     // We expect 403 — any response is valid to show
     let data;
     try { data = await res.json(); } catch(e) { data = { error: await res.text() }; }
 
-    resultBody.innerHTML =
-      '<div>' + JSON.stringify(data, null, 2).replace(/\n/g, '<br>').replace(/ /g, '&nbsp;') + '</div>';
-
+    // Build readable output: detection block first, then full JSON
+    let html = '';
     if (data.props_layer) {
-      resultBody.innerHTML +=
-        '<div class="layer-caught">Caught by: ' + escapeHtml(data.props_layer) + ' — ' + escapeHtml(data.reason || '') + '</div>';
+      html += '<div class="layer-caught" style="margin-bottom:10px;">&#x2717; Caught by: <strong>' + escapeHtml(data.props_layer) + ' — ' + escapeHtml(data.layer_name || '') + '</strong></div>';
     }
+    if (data.detection) {
+      html += '<div style="color:#ffa0a0;margin-bottom:8px;font-size:0.85em;"><strong>Detection result:</strong><br>';
+      for (const [k, v] of Object.entries(data.detection)) {
+        const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        const color = (k === 'hash_match' || k === 'fingerprint_match') && v === false ? '#ff6666' : '#e0e0e0';
+        html += '&nbsp;&nbsp;<span style="color:#888;">' + escapeHtml(k) + ':</span> <span style="color:' + color + ';">' + escapeHtml(val) + '</span><br>';
+      }
+      html += '</div>';
+    }
+    html += '<div style="color:#999;font-size:0.8em;border-top:1px solid #333;padding-top:6px;margin-top:6px;">' + JSON.stringify(data, null, 2).replace(/\n/g, '<br>').replace(/ /g, '&nbsp;') + '</div>';
+    resultBody.innerHTML = html;
 
     resultBox.classList.add('visible');
 
