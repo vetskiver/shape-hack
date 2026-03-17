@@ -46,7 +46,7 @@ from playwright.async_api import async_playwright, Page
 #     </dev/null 2>/dev/null | openssl x509 -fingerprint -sha256 -noout
 NYSED_TLS_FINGERPRINT = os.environ.get(
     "NYSED_TLS_FINGERPRINT",
-    "0D53B7BB43B892DC70D341431131D16EC7A3628714D0104F193100A792BBC68D8",
+    "0D53B7BB43B892DC70D34143113D16EC7A3628714D0104F193100A792BBC68D8",
 )
 
 NYSED_SEARCH_URL = "https://www.op.nysed.gov/verification-search"
