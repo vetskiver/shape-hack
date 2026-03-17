@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Props Oracle", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="Props Oracle", version="0.4.1", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,13 +76,14 @@ app.add_middleware(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def get_tappd_client():
+def get_dstack_client():
     """
-    Props L2 — returns TappdClient or None outside a real enclave.
+    Props L2 — returns DstackClient or None outside a real enclave.
+    Uses /var/run/dstack.sock (mounted in docker-compose).
     """
     try:
-        from dstack_sdk import TappdClient
-        return TappdClient()
+        from dstack_sdk import DstackClient
+        return DstackClient()
     except Exception:
         return None
 
@@ -108,7 +109,7 @@ class ForgeRequest(BaseModel):
 async def root():
     return {
         "service": "Props Anonymous Expert Oracle",
-        "version": "0.4.0",
+        "version": "0.4.1",
         "status": "running",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -126,7 +127,7 @@ async def health():
 
 @app.get("/api/attestation")
 async def get_attestation():
-    client = get_tappd_client()
+    client = get_dstack_client()
     if client is None:
         return JSONResponse(
             status_code=503,
@@ -143,7 +144,7 @@ async def get_attestation():
             "purpose": "attestation_test",
         }).encode()
         report_data = hashlib.sha256(payload).digest()
-        result = client.tdx_quote(report_data)
+        result = client.get_quote(report_data[:32])
         return {
             "attestation": {
                 "quote": result.quote,
@@ -172,12 +173,12 @@ async def get_attestation():
 
 @app.get("/api/tdx-key")
 async def get_tdx_key():
-    client = get_tappd_client()
+    client = get_dstack_client()
     if client is None:
         return JSONResponse(status_code=503, content={"error": "dstack-sdk not available"})
     try:
-        result = client.derive_key("/props-oracle", "signing-key")
-        key_bytes = result.toBytes() if hasattr(result, "toBytes") else str(result).encode()
+        result = client.get_key("/props-oracle", "signing-key")
+        key_bytes = result.decode_key()
         return {
             "derived_key_hash": hashlib.sha256(key_bytes).hexdigest(),
             "purpose": "enclave-deterministic signing key",

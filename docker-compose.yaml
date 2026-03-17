@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
 
   props-oracle:
-    image: vetskiver/props-oracle:latest
+    image: vetskiver/props-oracle:s4.1
     ports:
       - "8080:8080"
     volumes:
@@ -19,7 +19,7 @@ services:
       - PORT=8080
       # Props L1: pin the TLS fingerprint of the real NYSED registry (www.op.nysed.gov).
       # Verified: openssl s_client -connect www.op.nysed.gov:443 -servername www.op.nysed.gov
-      - NYSED_TLS_FINGERPRINT=${NYSED_TLS_FINGERPRINT:-0D53B7BB43B892DC70D341431131D16EC7A3628714D0104F193100A792BBC68D8}
+      - NYSED_TLS_FINGERPRINT=${NYSED_TLS_FINGERPRINT:-0D53B7BB43B892DC70D34143113D16EC7A3628714D0104F193100A792BBC68D8}
       # Set to "true" only for local dev — disables TLS pin and RSA decryption
       - SKIP_TLS_VERIFY=${SKIP_TLS_VERIFY:-false}
       - SKIP_ENCRYPTION=${SKIP_ENCRYPTION:-false}

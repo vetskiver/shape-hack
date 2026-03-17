@@ -36,7 +36,7 @@ def _get_signing_key() -> tuple[Ed25519PrivateKey, str, bool]:
     """
     Props L2 — derives a deterministic Ed25519 signing key from the TDX enclave.
 
-    TappdClient.derive_key() asks the dstack daemon to produce a key that is
+    DstackClient.get_key() asks the dstack daemon to produce a key that is
     cryptographically bound to the current enclave measurement (MRTD/RTMR).
     Same code → same key. Any modification to the enclave code changes the key,
     which invalidates all previously issued signatures.
@@ -45,11 +45,11 @@ def _get_signing_key() -> tuple[Ed25519PrivateKey, str, bool]:
         (private_key, public_key_hex, in_real_enclave)
     """
     try:
-        from dstack_sdk import TappdClient
-        client = TappdClient()
-        # Path and subject uniquely namespace this key within this enclave
-        result = client.derive_key("/props-oracle", "cert-signing-v1")
-        raw_bytes = result.toBytes() if hasattr(result, "toBytes") else str(result).encode()
+        from dstack_sdk import DstackClient
+        client = DstackClient()
+        # Path and purpose uniquely namespace this key within this enclave
+        result = client.get_key("/props-oracle", "cert-signing-v1")
+        raw_bytes = result.decode_key()
         # SHA-256 compress to 32-byte Ed25519 seed
         seed = hashlib.sha256(raw_bytes).digest()
         private_key = Ed25519PrivateKey.from_private_bytes(seed)
@@ -85,11 +85,10 @@ def _get_tdx_quote(payload_hash: bytes) -> tuple[str | None, str | None]:
     Returns (quote_hex, event_log) or (None, None) outside a real enclave.
     """
     try:
-        from dstack_sdk import TappdClient
-        client = TappdClient()
-        # TDX report_data is 64 bytes — pad/truncate SHA-256 (32 bytes) to fit
-        report_data = payload_hash[:32].ljust(64, b"\x00")
-        result = client.tdx_quote(report_data)
+        from dstack_sdk import DstackClient
+        client = DstackClient()
+        # get_quote accepts up to 64 bytes — pass our 32-byte SHA-256 hash directly
+        result = client.get_quote(payload_hash[:32])
         quote_hex = result.quote if isinstance(result.quote, str) else result.quote.hex()
         event_log = getattr(result, "event_log", None)
         return quote_hex, event_log
