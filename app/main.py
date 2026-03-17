@@ -254,6 +254,12 @@ def verify_credential_endpoint(request: VerifyRequest):
     # Store in memory so GET /api/certificate/:id and GET /api/verify/:id work
     certificates[certificate["certificate_id"]] = certificate
 
+    # Props L2 extension — store on-chain (best-effort, never blocks if it fails)
+    from onchain import store_certificate
+    tx_hash = store_certificate(certificate["certificate_id"], certificate["signature"])
+    certificate["on_chain_tx"] = tx_hash
+    certificate["basescan_url"] = f"https://sepolia.etherscan.io/tx/{tx_hash}" if tx_hash else None
+
     print(f"[api/verify] Certificate issued: {certificate['certificate_id']}")
     return certificate
 
