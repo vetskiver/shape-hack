@@ -850,12 +850,12 @@
   </div>
 
   <div class="layer-row">
-    <span class="layer-label">Props layers active:</span>
-    <span class="layer-pill on">L1 — Oracle: authenticated TLS fetch from NY medical board</span>
-    <span class="layer-pill on">L4 — Data redaction: user controls filter f(X) = X'</span>
-    <span class="layer-pill off">L2 — TEE: runs after submission</span>
-    <span class="layer-pill off">L3 — Pinned model: runs after submission</span>
-    <span class="layer-pill off">L5 — Adversarial defense: shown in screen 5</span>
+    <span class="layer-label">All 5 Props layers active:</span>
+    <span class="layer-pill on">L1 — Oracle: authenticating against NY medical board</span>
+    <span class="layer-pill on">L4 — Redaction: you control filter f(X) = X'</span>
+    <span class="layer-pill on">L2 — TEE: Phala Cloud TDX enforces privacy</span>
+    <span class="layer-pill on">L3 — Pinned model: Llama 3.2 3B, hash attested</span>
+    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
   </div>
 
   <div class="browser">
@@ -963,12 +963,12 @@
   </div>
 
   <div class="layer-row">
-    <span class="layer-label">Props layers demonstrated:</span>
-    <span class="layer-pill on">L2 — TEE: private computation inside Phala Cloud TDX</span>
-    <span class="layer-pill on">L3 — Pinned model: model hash attested</span>
-    <span class="layer-pill on">L4 — Data redaction: identity stripped, filter applied</span>
-    <span class="layer-pill off">L1 — completed in screen 1</span>
-    <span class="layer-pill off">L5 — shown in screen 5</span>
+    <span class="layer-label">All 5 Props layers active:</span>
+    <span class="layer-pill on">L2 — TEE: computation happened inside Phala Cloud TDX</span>
+    <span class="layer-pill on">L3 — Pinned model: model hash in attestation block below</span>
+    <span class="layer-pill on">L4 — Redaction: stripped fields shown here, applied in enclave</span>
+    <span class="layer-pill on">L1 — Oracle: data fetched from authoritative NYSED registry</span>
+    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
   </div>
 
   <div class="browser">
@@ -1059,12 +1059,12 @@
   </div>
 
   <div class="layer-row">
-    <span class="layer-label">Props layers demonstrated:</span>
-    <span class="layer-pill on">L2 — TEE attestation attached to published article</span>
-    <span class="layer-pill on">L3 — Pinned model: credential provenance auditable</span>
-    <span class="layer-pill off">L1 — completed in screen 1</span>
-    <span class="layer-pill off">L4 — completed in screen 2</span>
-    <span class="layer-pill off">L5 — shown in screen 5</span>
+    <span class="layer-label">All 5 Props layers active:</span>
+    <span class="layer-pill on">L2 — TEE: attestation badge attached to this article</span>
+    <span class="layer-pill on">L3 — Pinned model: credential provenance auditable by anyone</span>
+    <span class="layer-pill on">L1 — Oracle: data came from real NYSED registry</span>
+    <span class="layer-pill on">L4 — Redaction: identity is nowhere in this article</span>
+    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
   </div>
 
   <div class="article-card">
@@ -1120,12 +1120,12 @@
   </div>
 
   <div class="layer-row">
-    <span class="layer-label">Props layers demonstrated:</span>
+    <span class="layer-label">All 5 Props layers active:</span>
     <span class="layer-pill on">L2 — TEE: signature verified against enclave public key</span>
-    <span class="layer-pill on">L3 — Pinned model: version auditable by anyone</span>
-    <span class="layer-pill off">L1 — completed in screen 1</span>
-    <span class="layer-pill off">L4 — shown in screen 2</span>
-    <span class="layer-pill off">L5 — shown in screen 5</span>
+    <span class="layer-pill on">L3 — Pinned model: model hash auditable by anyone</span>
+    <span class="layer-pill on">L1 — Oracle: credential came from real NYSED registry</span>
+    <span class="layer-pill on">L4 — Redaction: only consented fields visible here</span>
+    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
   </div>
 
   <div id="verifier-loading" class="loading-placeholder">
@@ -1194,10 +1194,12 @@
   </div>
 
   <div class="layer-row">
-    <span class="layer-label">Props layers active:</span>
-    <span class="layer-pill on">L5 — Adversarial defense: authenticated inputs reject manipulation</span>
-    <span class="layer-pill on">L1 — Oracle authentication catches forged sources</span>
-    <span class="layer-pill on">L2 — TEE data integrity catches tampered inputs</span>
+    <span class="layer-label">All 5 Props layers active:</span>
+    <span class="layer-pill on">L5 — Adversarial defense: live rejection demo on this screen</span>
+    <span class="layer-pill on">L1 — Oracle: catches forged + fake registry attacks</span>
+    <span class="layer-pill on">L2 — TEE: catches tampered data attacks</span>
+    <span class="layer-pill on">L3 — Pinned model: model hash is tamper-evident</span>
+    <span class="layer-pill on">L4 — Redaction: only oracle-verified fields can exit</span>
   </div>
 
   <div class="attack-grid">
