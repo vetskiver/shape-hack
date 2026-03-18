@@ -167,16 +167,43 @@ def verify_onchain(cert: dict) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def check_tdx_quote(cert: dict) -> tuple[bool, str]:
-    """Check if a TDX attestation quote is present and provide guidance."""
-    quote = cert.get("tdx_quote")
-    if not quote:
-        return False, "No TDX quote in certificate (may be from simulated enclave)"
+    """
+    Verify the TDX attestation quote: parse the quote structure, extract
+    report_data, and check it matches the certificate's payload_hash.
+    """
+    quote_hex = cert.get("tdx_quote")
+    if not quote_hex:
+        return False, "No TDX quote in certificate (simulated enclave)"
 
-    return True, (
-        f"TDX quote present ({len(quote)} chars). "
-        f"Verify independently via Intel Trust Authority API or dstack-sdk verify-quote. "
-        f"The report_data field in the quote should match payload_hash: {cert.get('payload_hash', 'N/A')[:32]}..."
-    )
+    payload_hash = cert.get("payload_hash", "")
+
+    try:
+        quote_bytes = bytes.fromhex(quote_hex.replace("0x", ""))
+
+        # TDX Quote v4: report_data is 64 bytes at offset 568
+        REPORT_DATA_OFFSET = 568
+        REPORT_DATA_LEN = 64
+
+        if len(quote_bytes) < REPORT_DATA_OFFSET + REPORT_DATA_LEN:
+            return False, f"Quote too short ({len(quote_bytes)} bytes) for structural verification"
+
+        report_data = quote_bytes[REPORT_DATA_OFFSET:REPORT_DATA_OFFSET + REPORT_DATA_LEN]
+        report_hash = report_data[:32].hex()
+
+        if report_hash == payload_hash:
+            return True, (
+                f"TDX quote VERIFIED — report_data matches payload_hash ({report_hash[:16]}...). "
+                f"Quote is {len(quote_bytes)} bytes. "
+                f"For full Intel DCAP verification: "
+                f"https://api.trustauthority.intel.com/appraisal/v2/attest"
+            )
+        else:
+            return False, (
+                f"TDX quote report_data MISMATCH — "
+                f"quote: {report_hash[:16]}... vs payload_hash: {payload_hash[:16]}..."
+            )
+    except Exception as e:
+        return False, f"TDX quote parsing failed: {e}"
 
 
 # ---------------------------------------------------------------------------

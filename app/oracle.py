@@ -64,13 +64,17 @@ ORACLE_TARGET = os.environ.get("ORACLE_TARGET", "medical_board")
 # Props L1 — section 3.1: verify we are talking to the real NYSED registry.
 # ---------------------------------------------------------------------------
 # SHA-256 fingerprint of www.op.nysed.gov, verified 2026-03-16.
-# Update when cert renews (annually):
+# HARDCODED in source code so it is part of the Docker image and therefore
+# part of the TDX enclave measurement (MRTD). An operator cannot change the
+# pinned registry without changing the code, which changes the measurement,
+# which changes the enclave-derived signing key, which invalidates all
+# previously issued certificates. This is the L1 trust anchor.
+#
+# To update when the cert renews (annually):
 #   openssl s_client -connect www.op.nysed.gov:443 -servername www.op.nysed.gov \
 #     </dev/null 2>/dev/null | openssl x509 -fingerprint -sha256 -noout
-NYSED_TLS_FINGERPRINT = os.environ.get(
-    "NYSED_TLS_FINGERPRINT",
-    "0D53B7BB43B892DC70D34143113D16EC7A3628714D0104F193100A792BBC68D8",
-)
+# Then rebuild and redeploy the Docker image.
+NYSED_TLS_FINGERPRINT = "0D53B7BB43B892DC70D34143113D16EC7A3628714D0104F193100A792BBC68D8"
 
 NYSED_SEARCH_URL = "https://www.op.nysed.gov/verification-search"
 NYSED_HOSTNAME = "www.op.nysed.gov"
@@ -361,14 +365,12 @@ async def _scrape_modal(page, license_number: str, profession: str) -> dict:
 NY_ATTORNEY_API = "https://data.ny.gov/resource/eqw2-r5nb.json"
 NY_ATTORNEY_HOSTNAME = "data.ny.gov"
 
-# SHA-256 TLS fingerprint of data.ny.gov — pin inside enclave.
-# Update when cert renews:
+# SHA-256 TLS fingerprint of data.ny.gov — hardcoded in measured code.
+# Same rationale as NYSED: part of the enclave measurement, not configurable.
+# Update when cert renews — rebuild and redeploy:
 #   openssl s_client -connect data.ny.gov:443 -servername data.ny.gov \
 #     </dev/null 2>/dev/null | openssl x509 -fingerprint -sha256 -noout
-NY_ATTORNEY_TLS_FINGERPRINT = os.environ.get(
-    "NY_ATTORNEY_TLS_FINGERPRINT",
-    "49653D147D6180FDC9BEBF2A971930CFD5AAD671059781DA3F5494292434F8C9",
-)
+NY_ATTORNEY_TLS_FINGERPRINT = "49653D147D6180FDC9BEBF2A971930CFD5AAD671059781DA3F5494292434F8C9"
 
 
 def _verify_attorney_tls() -> tuple[bool, str]:

@@ -15,18 +15,16 @@ services:
       - "8080:8080"
     volumes:
       - /var/run/dstack.sock:/var/run/dstack.sock
+      - cert_data:/app/certs  # Persist certificates across container restarts
     environment:
       - PORT=8080
       # S8/S10 — Pluggable Oracle: select data source
       # medical_board = real Chromium scrape of NYSED (default)
       # attorney      = real NY attorney registry via data.ny.gov API
       - ORACLE_TARGET=${ORACLE_TARGET:-medical_board}
-      # Props L1: pin the TLS fingerprint of the real NYSED registry (www.op.nysed.gov).
-      # Verified: openssl s_client -connect www.op.nysed.gov:443 -servername www.op.nysed.gov
-      - NYSED_TLS_FINGERPRINT=${NYSED_TLS_FINGERPRINT:-0D53B7BB43B892DC70D34143113D16EC7A3628714D0104F193100A792BBC68D8}
-      # Props L1: pin the TLS fingerprint of the NY attorney registry (data.ny.gov).
-      # Verified: openssl s_client -connect data.ny.gov:443 -servername data.ny.gov
-      - NY_ATTORNEY_TLS_FINGERPRINT=${NY_ATTORNEY_TLS_FINGERPRINT:-49653D147D6180FDC9BEBF2A971930CFD5AAD671059781DA3F5494292434F8C9}
+      # Props L1: TLS fingerprints are HARDCODED in oracle.py (part of enclave measurement).
+      # They are NOT configurable via env vars — changing the pin requires a code change,
+      # which changes the enclave measurement, which is the correct trust model.
       # Set to "true" only for local dev — disables TLS pin and RSA decryption
       - SKIP_TLS_VERIFY=${SKIP_TLS_VERIFY:-false}
       - SKIP_ENCRYPTION=${SKIP_ENCRYPTION:-false}
@@ -51,3 +49,4 @@ services:
 
 volumes:
   ollama_data:
+  cert_data:
