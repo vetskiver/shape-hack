@@ -5,6 +5,36 @@
 Built for the Encode Club Shape Rotator Hackathon — TEE track.
 Implements [Props: Verifiable ML Inference over Private Data](https://arxiv.org/pdf/2410.20522) (Juels & Koushanfar, 2024).
 
+**Live deployment:** https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network
+
+**Contract:** [`0x07a7c1efc53923b202191a888fad41e54cae7ca6`](https://sepolia.basescan.org/address/0x07a7c1efc53923b202191a888fad41e54cae7ca6) on Base Sepolia (chain 84532)
+
+---
+
+## What it does
+
+A doctor, lawyer, or whistleblower submits their professional credentials. The Props pipeline inside an Intel TDX enclave authenticates against the authoritative licensing registry, extracts credential facts via LLM, strips identity fields, and produces a signed certificate stored permanently on Base (Coinbase L2). The expert attaches this certificate to anything they publish. Readers verify the credential without knowing who the expert is.
+
+### Business model
+
+B2B protocol licensing to media platforms, legal systems, and verification services. Per-query API pricing for third-party integrations. The on-chain registry is the durable primitive — the verification API is the monetisation layer.
+
+---
+
+## Architecture — Props paper layers
+
+| Layer | What it does | Implementation |
+|-------|-------------|----------------|
+| **L1 Oracle** | Fetches data from authoritative TLS source inside TEE | Chromium scrapes NYSED registry (medical) or data.ny.gov Socrata API (attorney). TLS fingerprint pinned inside enclave. |
+| **L2 TEE + Attestation** | Hardware-isolated computation with cryptographic proof | Phala Cloud Intel TDX enclave. Ed25519 signing with enclave-derived deterministic key. TDX quote includes payload hash. |
+| **L3 Pinned Model** | Verifiable ML inference — model hash in attestation | Llama 3.2 3B via Ollama sidecar. Model digest from `/api/show` included in signed certificate. Hard-fails if LLM unavailable. |
+| **L4 Data Redaction** | User-controlled filter f(X) = X' (section 2.4) | Toggle switches on frontend control server-side redaction. Identity fields always stripped. Certificate reflects what the enclave actually removed. |
+| **L5 Adversarial Defense** | Architectural fraud rejection | `/api/forge` endpoint demonstrates three live attack rejections using real pipeline guard functions. |
+
+### Oracle authentication model
+
+The NYSED medical board portal is a **public license verification system** — anyone can look up a license number. The Props L1 oracle proves that the data came from the real, authoritative government registry (via TLS fingerprint pinning inside the enclave) and was not fabricated or modified. The architecture fully supports credentialed portal login (the Chromium-in-TEE pattern handles any web authentication flow), and would be used for data sources that require login credentials. The attorney oracle demonstrates a second pattern: structured API access to data.ny.gov with separate TLS pinning. The key property is **data provenance** — the oracle establishes that the credential facts originated from the authoritative source, were fetched inside the enclave, and were not tampered with.
+
 ---
 
 ## Local Dev Setup
@@ -181,9 +211,11 @@ phala cvms get 6faa38933e632ca8dd2795fa68ad043c0bb6ad82
 | S2 | Oracle layer — Chromium scrapes NY medical board | ✅ done |
 | S3 | LLM extraction (Ollama Llama 3.2 3B) + redaction filter | ✅ done |
 | S4 | Attestation output + full API + forge endpoint + Phala deploy | ✅ done |
-| S5 | Frontend connected to real backend | — |
-| S6 | On-chain certificate registry (Base testnet) | — |
-| S7 | Adversarial forge endpoint (extended) | — |
+| S5 | Frontend connected to real backend (5-screen SPA) | ✅ done |
+| S6 | On-chain certificate registry (Ethereum Sepolia) | ✅ done |
+| S7 | Adversarial forge endpoint (real pipeline guards) | ✅ done |
+| S8 | Pluggable oracle (medical_board + employment) | ✅ done |
+| S9 | Full integration + bug fixing | ✅ done |
 
 ### How to verify S4 is fully working
 

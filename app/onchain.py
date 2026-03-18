@@ -2,9 +2,12 @@
 Props on-chain certificate registry — app/onchain.py
 =====================================================
 Props L2 extension — on-chain permanence.
-Stores certificate hashes on Ethereum Sepolia so they exist permanently without
-depending on this server. A journalist or court can verify a certificate in 2030
-even if the Props server is gone.
+Stores certificate hashes on Base Sepolia (Coinbase L2) so they exist permanently
+without depending on this server. A journalist or court can verify a certificate
+in 2030 even if the Props server is gone.
+
+Base Sepolia is an Ethereum L2 — lower cost, higher throughput, where real
+protocols deploy. This is the difference between "SaaS tool" and "protocol."
 
 Uses raw JSON-RPC calls via httpx — no web3 dependency.
 """
@@ -19,8 +22,12 @@ from ecdsa import util as ecdsa_util
 
 logger = logging.getLogger(__name__)
 
-SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com"
-CHAIN_ID = 11155111
+# Base Sepolia L2 — default chain for on-chain certificate storage
+# Override with CHAIN_RPC_URL / CHAIN_ID env vars if needed.
+CHAIN_RPC = os.environ.get("CHAIN_RPC_URL", "https://sepolia.base.org")
+CHAIN_ID = int(os.environ.get("CHAIN_ID", "84532"))
+CHAIN_NAME = os.environ.get("CHAIN_NAME", "Base Sepolia")
+CHAIN_EXPLORER = os.environ.get("CHAIN_EXPLORER", "https://sepolia.basescan.org")
 
 # ---------------------------------------------------------------------------
 # Pure-Python Keccak-256 (NOT SHA3-256 — different padding byte: 0x01 vs 0x06)
@@ -218,9 +225,9 @@ def _sign_tx(*, nonce, gas_price, gas_limit, to_hex, value, data, chain_id, pk_h
 # ---------------------------------------------------------------------------
 
 def _rpc(method: str, params: list):
-    """Call a JSON-RPC method on the Sepolia endpoint."""
+    """Call a JSON-RPC method on the configured chain endpoint."""
     r = httpx.post(
-        SEPOLIA_RPC,
+        CHAIN_RPC,
         json={"jsonrpc": "2.0", "method": method, "params": params, "id": 1},
         timeout=30,
     )
@@ -251,6 +258,52 @@ def _hex_to_bytes32(hex_str: str) -> bytes:
     clean = hex_str.replace("0x", "").replace("0X", "")
     padded = clean[:64].ljust(64, "0")
     return bytes.fromhex(padded)
+
+
+def verify_certificate_onchain(certificate_id: str, expected_hash: str) -> dict:
+    """
+    Props L2 — read certificate hash from on-chain registry and compare.
+
+    Calls the smart contract's verify(bytes32) view function via eth_call.
+    Returns {verified: bool, on_chain_hash: str, matches: bool, ...}
+    """
+    contract_address = os.environ.get("CONTRACT_ADDRESS", "").strip()
+    if not contract_address:
+        return {"verified": False, "reason": "CONTRACT_ADDRESS not configured"}
+
+    try:
+        cert_b32 = _cert_id_to_bytes32(certificate_id)
+        calldata = _abi_encode_verify(cert_b32)
+
+        result = _rpc("eth_call", [
+            {"to": contract_address, "data": "0x" + calldata.hex()},
+            "latest",
+        ])
+
+        # Result is 0x + 64 hex chars (32 bytes)
+        stored_hash_hex = result[2:] if result.startswith("0x") else result
+        stored_hash_hex = stored_hash_hex.lstrip("0") or "0"
+
+        # Zero means not found
+        is_stored = stored_hash_hex != "0" and len(stored_hash_hex) > 1
+
+        # Compare against expected hash (first 32 bytes of payload_hash)
+        expected_b32 = _hex_to_bytes32(expected_hash)
+        matches = is_stored and (result[2:].lower() == expected_b32.hex().lower())
+
+        return {
+            "verified": is_stored,
+            "on_chain_hash": "0x" + result[2:] if is_stored else None,
+            "expected_hash": "0x" + expected_b32.hex(),
+            "matches": matches,
+            "contract": contract_address,
+            "chain": CHAIN_NAME,
+            "chain_id": CHAIN_ID,
+            "explorer": CHAIN_EXPLORER,
+        }
+    except Exception as e:
+        logger.error(f"[onchain] On-chain verification failed: {e}")
+        return {"verified": False, "reason": f"RPC error: {e}"}
 
 
 def store_certificate(certificate_id: str, attestation_hash: str) -> str | None:

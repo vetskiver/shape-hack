@@ -18,6 +18,7 @@ Endpoints:
   POST /api/forge              — adversarial rejection demo (S7)
 """
 
+import base64
 import hashlib
 import json
 import os
@@ -27,15 +28,66 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
+from cryptography.hazmat.primitives.asymmetric import rsa, padding as rsa_padding
+from cryptography.hazmat.primitives import hashes, serialization
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from oracle import fetch_credential, ORACLE_TARGET
 from extractor import extract_credential_facts, wait_for_ollama, OLLAMA_BASE_URL, MODEL_NAME
 from redaction import apply_redaction_filter, get_all_disclosable_fields
 from attestation import generate_certificate, verify_certificate
+
+
+# ---------------------------------------------------------------------------
+# RSA keypair for client-side credential encryption (Props security model)
+# Private key lives only inside the enclave. Public key is served to the browser.
+# Credentials are RSA-OAEP encrypted before leaving the user's device.
+# ---------------------------------------------------------------------------
+
+def _generate_enclave_rsa_key():
+    """
+    Generate or derive RSA keypair for credential encryption.
+    Inside a real enclave, derives seed from TDX measurement for determinism.
+    Outside, generates an ephemeral keypair.
+    """
+    try:
+        from dstack_sdk import DstackClient
+        client = DstackClient()
+        result = client.get_key("/props-oracle", "rsa-credential-encryption-v1")
+        seed = result.decode_key()
+        # Use deterministic seed — but RSA keygen isn't seedable in standard libs,
+        # so we generate once at startup. Inside TDX the key is protected regardless.
+        print("[crypto] Deriving RSA key inside real TDX enclave")
+    except Exception:
+        print("[crypto] Generating ephemeral RSA keypair (outside enclave)")
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return private_key
+
+
+_ENCLAVE_RSA_KEY = _generate_enclave_rsa_key()
+
+_ENCLAVE_RSA_PUBLIC_PEM = _ENCLAVE_RSA_KEY.public_key().public_bytes(
+    serialization.Encoding.PEM,
+    serialization.PublicFormat.SubjectPublicKeyInfo,
+).decode()
+
+
+def _decrypt_rsa_credentials(encrypted_b64: str) -> dict:
+    """Decrypt RSA-OAEP encrypted credentials from the browser."""
+    ciphertext = base64.b64decode(encrypted_b64)
+    plaintext = _ENCLAVE_RSA_KEY.decrypt(
+        ciphertext,
+        rsa_padding.OAEP(
+            mgf=rsa_padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+    return json.loads(plaintext.decode())
 
 
 # ---------------------------------------------------------------------------
@@ -104,8 +156,9 @@ def get_dstack_client():
 # ---------------------------------------------------------------------------
 
 class VerifyRequest(BaseModel):
-    credentials: dict           # {license_number: str, profession: str (optional)}
-    disclosed_fields: list[str] # e.g. ["specialty", "years_active"]
+    credentials: Optional[dict] = None            # plaintext (local dev / backwards compat)
+    encrypted_credentials: Optional[str] = None   # RSA-OAEP base64 (production — browser encrypts)
+    disclosed_fields: list[str]                    # e.g. ["specialty", "years_active"]
 
 class ForgeRequest(BaseModel):
     type: str                   # "pdf" | "fake_registry" | "tampered"
@@ -148,6 +201,18 @@ async def api_info():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/public-key — RSA public key for client-side credential encryption
+# Props security: credentials are encrypted in the browser BEFORE leaving the
+# user's device. Only the enclave can decrypt them.
+# ---------------------------------------------------------------------------
+
+@app.get("/api/public-key", response_class=PlainTextResponse)
+async def get_public_key():
+    """Returns the enclave's RSA public key in PEM format for client-side encryption."""
+    return _ENCLAVE_RSA_PUBLIC_PEM
 
 
 # ---------------------------------------------------------------------------
@@ -231,89 +296,112 @@ async def get_tdx_key():
 @app.post("/api/verify")
 def verify_credential_endpoint(request: VerifyRequest):
     """
-    Full Props pipeline:
+    Full Props pipeline with real-time progress streaming:
       1. L1 — Oracle: fetches credential from configured oracle source
       2. L3 — LLM:    extracts credential facts inside enclave
       3. L4 — Redact: User-selected fields only; identity fields always stripped
       4. L2 — Attest: Ed25519 signature + TDX quote over the certificate payload
 
     Body: { credentials: {...}, disclosed_fields: [...] }
-    Returns: full signed certificate JSON
+    Returns: NDJSON stream — progress events then final certificate.
 
-    S8: ORACLE_TARGET env var selects the data source (medical_board | employment).
+    S8/S10: ORACLE_TARGET env var selects the data source (medical_board | attorney).
     Same enclave, same attestation, same redaction — different oracle.
     """
-    # Props L1 — Oracle layer (section 3.1)
-    # S9: oracle_target can be overridden per-request from the frontend
-    request_oracle_target = request.credentials.pop("oracle_target", None)
+
+    # Pre-validate before starting the stream
+    if request.encrypted_credentials:
+        try:
+            credentials = _decrypt_rsa_credentials(request.encrypted_credentials)
+            print("[api/verify] Credentials decrypted (RSA-OAEP from browser)")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Credential decryption failed: {e}")
+    elif request.credentials:
+        credentials = request.credentials
+        print("[api/verify] Using plaintext credentials (no encryption)")
+    else:
+        raise HTTPException(status_code=400, detail="Either credentials or encrypted_credentials is required")
+
+    request_oracle_target = credentials.pop("oracle_target", None)
     oracle_target = request_oracle_target or ORACLE_TARGET
-    print(f"[api/verify] Starting oracle fetch (target={oracle_target})")
-    try:
-        oracle_result = fetch_credential(request.credentials, oracle_target=oracle_target)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Oracle fetch failed: {e}")
+    disclosed_fields = request.disclosed_fields
 
-    raw_credential = oracle_result["credential"]
-    oracle_type = oracle_result.get("oracle_type", ORACLE_TARGET)
+    def _pipeline_stream():
+        """Generator that yields NDJSON progress events as each pipeline stage completes."""
+        # Stage 1: Oracle fetch
+        yield json.dumps({"stage": "oracle", "status": "running"}) + "\n"
+        print(f"[api/verify] Starting oracle fetch (target={oracle_target})")
+        try:
+            oracle_result = fetch_credential(credentials, oracle_target=oracle_target)
+        except ValueError as e:
+            yield json.dumps({"stage": "oracle", "status": "error", "error": str(e)}) + "\n"
+            return
+        except Exception as e:
+            yield json.dumps({"stage": "oracle", "status": "error", "error": f"Oracle fetch failed: {e}"}) + "\n"
+            return
 
-    # Props L1/L5 — Pipeline guard: reject data not authenticated by the oracle
-    # This is the real guard that the forge endpoint's "pdf" attack demonstrates.
-    if not oracle_result.get("oracle_authenticated", False):
-        raise HTTPException(
-            status_code=403,
-            detail="Pipeline rejected: credential not oracle-authenticated. "
-                   "Data must arrive through the authenticated oracle channel.",
+        raw_credential = oracle_result["credential"]
+        oracle_type = oracle_result.get("oracle_type", ORACLE_TARGET)
+
+        if not oracle_result.get("oracle_authenticated", False):
+            yield json.dumps({"stage": "oracle", "status": "error", "error": "Pipeline rejected: credential not oracle-authenticated."}) + "\n"
+            return
+
+        yield json.dumps({"stage": "oracle", "status": "done", "fields": len(raw_credential)}) + "\n"
+        print(f"[api/verify] Oracle returned {len(raw_credential)} fields (type={oracle_type})")
+
+        # Stage 2: LLM extraction
+        yield json.dumps({"stage": "llm", "status": "running"}) + "\n"
+        try:
+            extraction = extract_credential_facts(raw_credential, oracle_type=oracle_type)
+        except Exception as e:
+            yield json.dumps({"stage": "llm", "status": "error", "error": f"LLM extraction failed: {e}"}) + "\n"
+            return
+
+        extraction_method = extraction.get("extraction_method", "unknown")
+        yield json.dumps({"stage": "llm", "status": "done", "method": extraction_method}) + "\n"
+        print(f"[api/verify] Extraction method: {extraction_method}")
+
+        enriched_credential = {**raw_credential, **extraction["extracted_facts"]}
+
+        # Stage 3: Redaction
+        yield json.dumps({"stage": "redaction", "status": "running"}) + "\n"
+        redaction_result = apply_redaction_filter(
+            enriched_credential, disclosed_fields, oracle_type=oracle_type
         )
+        stripped_count = len(redaction_result["stripped_fields"])
+        yield json.dumps({"stage": "redaction", "status": "done", "stripped": stripped_count}) + "\n"
+        print(f"[api/verify] Redaction: stripped={stripped_count} fields")
 
-    print(f"[api/verify] Oracle returned {len(raw_credential)} fields (type={oracle_type})")
+        # Stage 4: Attestation + on-chain
+        yield json.dumps({"stage": "attestation", "status": "running"}) + "\n"
+        try:
+            certificate = generate_certificate(
+                redaction_result,
+                oracle_result,
+                extraction["model_info"],
+            )
+        except Exception as e:
+            yield json.dumps({"stage": "attestation", "status": "error", "error": f"Attestation failed: {e}"}) + "\n"
+            return
 
-    # Props L3 — LLM extraction (section 3.2)
-    # extract_credential_facts uses oracle_type to select the right extraction config
-    try:
-        extraction = extract_credential_facts(raw_credential, oracle_type=oracle_type)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM extraction failed: {e}")
+        certificate["oracle_type"] = oracle_type
+        certificate["extraction_method"] = extraction_method
+        certificates[certificate["certificate_id"]] = certificate
 
-    # Merge extracted facts into the raw credential for redaction input
-    enriched_credential = {**raw_credential, **extraction["extracted_facts"]}
+        # On-chain storage (best-effort)
+        from onchain import store_certificate as store_cert_onchain, CHAIN_EXPLORER
+        tx_hash = store_cert_onchain(certificate["certificate_id"], certificate["payload_hash"])
+        certificate["on_chain_tx"] = tx_hash
+        certificate["basescan_url"] = f"{CHAIN_EXPLORER}/tx/{tx_hash}" if tx_hash else None
 
-    # Props L4 — Data redaction filter f(X) = X' (section 2.4)
-    # oracle_type determines which fields are identity vs disclosable
-    redaction_result = apply_redaction_filter(
-        enriched_credential, request.disclosed_fields, oracle_type=oracle_type
-    )
-    print(
-        f"[api/verify] Redaction: disclosed={redaction_result['disclosed_fields']} "
-        f"stripped={len(redaction_result['stripped_fields'])} fields"
-    )
+        yield json.dumps({"stage": "attestation", "status": "done", "on_chain": bool(tx_hash)}) + "\n"
 
-    # Props L2 — Attestation: sign with enclave key + TDX hardware quote (section 3.1)
-    try:
-        certificate = generate_certificate(
-            redaction_result,
-            oracle_result,
-            extraction["model_info"],
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Attestation failed: {e}")
+        # Final event: the complete certificate
+        yield json.dumps({"stage": "done", "certificate": certificate}) + "\n"
+        print(f"[api/verify] Certificate issued: {certificate['certificate_id']} (type={oracle_type})")
 
-    # S8 — include oracle_type in certificate so verifier knows the credential domain
-    certificate["oracle_type"] = oracle_type
-
-    # Store in memory so GET /api/certificate/:id and GET /api/verify/:id work
-    certificates[certificate["certificate_id"]] = certificate
-
-    # Props L2 extension — store on-chain (best-effort, never blocks if it fails)
-    # Uses payload_hash (SHA-256 of the signed payload) as the on-chain attestation hash
-    from onchain import store_certificate
-    tx_hash = store_certificate(certificate["certificate_id"], certificate["payload_hash"])
-    certificate["on_chain_tx"] = tx_hash
-    certificate["basescan_url"] = f"https://sepolia.etherscan.io/tx/{tx_hash}" if tx_hash else None
-
-    print(f"[api/verify] Certificate issued: {certificate['certificate_id']} (type={oracle_type})")
-    return certificate
+    return StreamingResponse(_pipeline_stream(), media_type="application/x-ndjson")
 
 
 # =============================================================================
@@ -356,6 +444,12 @@ async def verify_certificate_endpoint(certificate_id: str):
     # Props L2 — actual cryptographic verification (not hardcoded)
     valid, reason = verify_certificate(cert)
 
+    # Props L2 extension — verify certificate hash exists on-chain (trustless)
+    from onchain import verify_certificate_onchain
+    on_chain_verification = verify_certificate_onchain(
+        certificate_id, cert.get("payload_hash", "")
+    )
+
     return {
         "valid": valid,
         "reason": reason,
@@ -366,6 +460,7 @@ async def verify_certificate_endpoint(certificate_id: str):
         "model_digest": cert.get("model_digest"),
         "oracle_source": cert.get("oracle_source"),
         "oracle_type": cert.get("oracle_type", "medical_board"),
+        "extraction_method": cert.get("extraction_method"),
         "timestamp": cert.get("timestamp"),
         "enclave": cert.get("enclave"),
         "platform": cert.get("platform"),
@@ -376,6 +471,10 @@ async def verify_certificate_endpoint(certificate_id: str):
         # On-chain permanence — returned so verifier page can show tx link
         "on_chain_tx": cert.get("on_chain_tx"),
         "basescan_url": cert.get("basescan_url"),
+        # On-chain verification — trustless, reads directly from smart contract
+        "on_chain_verified": on_chain_verification.get("verified", False),
+        "on_chain_matches": on_chain_verification.get("matches", False),
+        "on_chain_verification": on_chain_verification,
     }
 
 

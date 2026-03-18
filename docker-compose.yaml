@@ -10,30 +10,40 @@ services:
     restart: unless-stopped
 
   props-oracle:
-    image: vetskiver/props-oracle:s9
+    image: vetskiver/props-oracle:s11
     ports:
       - "8080:8080"
     volumes:
       - /var/run/dstack.sock:/var/run/dstack.sock
     environment:
       - PORT=8080
-      # S8 — Pluggable Oracle: select data source
+      # S8/S10 — Pluggable Oracle: select data source
       # medical_board = real Chromium scrape of NYSED (default)
-      # employment    = mock HR portal (demo: protocol works for any TLS source)
+      # attorney      = real NY attorney registry via data.ny.gov API
       - ORACLE_TARGET=${ORACLE_TARGET:-medical_board}
       # Props L1: pin the TLS fingerprint of the real NYSED registry (www.op.nysed.gov).
       # Verified: openssl s_client -connect www.op.nysed.gov:443 -servername www.op.nysed.gov
       - NYSED_TLS_FINGERPRINT=${NYSED_TLS_FINGERPRINT:-0D53B7BB43B892DC70D34143113D16EC7A3628714D0104F193100A792BBC68D8}
+      # Props L1: pin the TLS fingerprint of the NY attorney registry (data.ny.gov).
+      # Verified: openssl s_client -connect data.ny.gov:443 -servername data.ny.gov
+      - NY_ATTORNEY_TLS_FINGERPRINT=${NY_ATTORNEY_TLS_FINGERPRINT:-49653D147D6180FDC9BEBF2A971930CFD5AAD671059781DA3F5494292434F8C9}
       # Set to "true" only for local dev — disables TLS pin and RSA decryption
       - SKIP_TLS_VERIFY=${SKIP_TLS_VERIFY:-false}
       - SKIP_ENCRYPTION=${SKIP_ENCRYPTION:-false}
       # Props L3: Ollama sidecar URL and model name
       - OLLAMA_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
-      # Props L2 extension — on-chain certificate registry (Base Sepolia)
-      # Fill CONTRACT_ADDRESS after running: forge create contracts/PropsCertRegistry.sol:PropsCertRegistry --rpc-url https://ethereum-sepolia-rpc.publicnode.com --private-key <KEY>
-      - CONTRACT_ADDRESS=0xB2c9D43E4668d93EB8C4275210f9d28709f4639b
-      - PRIVATE_KEY=0xe7556444376837df453b4c73d05ad3536fcd1eba6515f81af9a255cb0539d905
+      # Props L2 extension — on-chain certificate registry
+      # Default: Base Sepolia (Coinbase L2, chain 84532)
+      # To use Ethereum Sepolia instead, override CHAIN_* vars
+      - CHAIN_RPC_URL=${CHAIN_RPC_URL:-https://sepolia.base.org}
+      - CHAIN_ID=${CHAIN_ID:-84532}
+      - CHAIN_NAME=${CHAIN_NAME:-Base Sepolia}
+      - CHAIN_EXPLORER=${CHAIN_EXPLORER:-https://sepolia.basescan.org}
+      # CONTRACT_ADDRESS: deployed PropsCertRegistry contract
+      # PRIVATE_KEY: deployer key — set via .env or Phala Cloud secrets, never commit
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-0x07a7c1efc53923b202191a888fad41e54cae7ca6}
+      - PRIVATE_KEY=${PRIVATE_KEY}
     shm_size: '256m'
     restart: unless-stopped
     depends_on:

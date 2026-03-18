@@ -64,34 +64,34 @@ Respond with ONLY the JSON object, nothing else.
 Example: {{"specialty": "Cardiology", "years_active": 17, "jurisdiction": "New York State", "standing": "In good standing"}}
 """
 
-# Employment extraction (S8)
-_EMPLOYMENT_CREDENTIAL_FIELDS = {
-    "company", "tier", "role", "team", "department",
-    "years_tenure", "employment_status",
+# Attorney extraction (S10 — real NY attorney registry)
+_ATTORNEY_CREDENTIAL_FIELDS = {
+    "year_admitted", "years_practicing", "judicial_department",
+    "law_school", "standing", "county", "jurisdiction",
 }
-_EMPLOYMENT_IDENTITY_FIELDS = {
-    "employee_name", "employee_id", "ssn_last_four",
-    "start_date", "office_location", "manager_name",
+_ATTORNEY_IDENTITY_FIELDS = {
+    "name", "registration_number", "address",
+    "phone_number", "company_name",
 }
-_EMPLOYMENT_EXTRACTION_PROMPT = """\
+_ATTORNEY_EXTRACTION_PROMPT = """\
 You are a credential extraction assistant running inside a secure enclave.
-Your only task is to extract specific fields from an employment record.
+Your only task is to extract specific fields from an attorney registration record.
 
-Raw employment record (JSON):
+Raw attorney record (JSON):
 {raw_json}
 
 Extract EXACTLY these seven fields and return ONLY a JSON object with no extra text:
-- company: the employer name (string)
-- tier: company classification e.g. "FAANG", "Bulge Bracket" (string)
-- role: job title (string)
-- team: team name (string)
-- department: department name (string)
-- years_tenure: number of years at the company (integer, compute from start_date if missing)
-- employment_status: current status e.g. "Current employee", "Former employee" (string)
+- year_admitted: the year admitted to the NY Bar (integer)
+- years_practicing: number of years practicing law (integer, compute from year_admitted if missing)
+- judicial_department: the judicial department of admission (string, e.g. "Judicial Department 1")
+- law_school: the law school attended (string)
+- standing: registration status (string, e.g. "In good standing", "Suspended")
+- county: the county of practice (string)
+- jurisdiction: the licensing jurisdiction (string)
 
 If a field cannot be determined, use null.
 Respond with ONLY the JSON object, nothing else.
-Example: {{"company": "Major Technology Company", "tier": "FAANG", "role": "Senior Software Engineer", "team": "Infrastructure", "department": "Platform Engineering", "years_tenure": 7, "employment_status": "Current employee"}}
+Example: {{"year_admitted": 1978, "years_practicing": 48, "judicial_department": "Judicial Department 1", "law_school": "Fordham University School Of Law", "standing": "In good standing", "county": "New York", "jurisdiction": "New York State"}}
 """
 
 # Registry
@@ -101,10 +101,10 @@ _EXTRACTION_CONFIGS = {
         "identity_fields": _MEDICAL_IDENTITY_FIELDS,
         "prompt": _MEDICAL_EXTRACTION_PROMPT,
     },
-    "employment": {
-        "credential_fields": _EMPLOYMENT_CREDENTIAL_FIELDS,
-        "identity_fields": _EMPLOYMENT_IDENTITY_FIELDS,
-        "prompt": _EMPLOYMENT_EXTRACTION_PROMPT,
+    "attorney": {
+        "credential_fields": _ATTORNEY_CREDENTIAL_FIELDS,
+        "identity_fields": _ATTORNEY_IDENTITY_FIELDS,
+        "prompt": _ATTORNEY_EXTRACTION_PROMPT,
     },
 }
 
@@ -141,39 +141,33 @@ def get_model_info() -> dict:
     """
     Props L3 — returns model name and a digest that goes into the attestation.
     Ollama's /api/show returns the model's sha256 manifest digest.
+
+    HARD-FAIL: If we cannot retrieve the real model digest, the attestation
+    would contain a fake hash — violating L3 integrity. We raise instead
+    of falling back to sha256(MODEL_NAME).
     """
-    try:
-        resp = httpx.post(
-            f"{OLLAMA_BASE_URL}/api/show",
-            json={"name": MODEL_NAME},
-            timeout=15.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        # Ollama returns the digest in modelinfo or details
-        digest = (
-            data.get("details", {}).get("parent_model", "")
-            or data.get("modelinfo", {}).get("general.basename", "")
-            or ""
-        )
-        # Fall back: hash the model file list for a stable identifier
-        if not digest:
-            model_files = json.dumps(data.get("model_info", {}), sort_keys=True)
-            digest = hashlib.sha256(model_files.encode()).hexdigest()
-        return {
-            "model_name": MODEL_NAME,
-            "model_digest": digest,
-            "ollama_url": OLLAMA_BASE_URL,
-        }
-    except Exception as e:
-        # Non-fatal — attestation continues with name-only hash
-        fallback_digest = hashlib.sha256(MODEL_NAME.encode()).hexdigest()
-        return {
-            "model_name": MODEL_NAME,
-            "model_digest": fallback_digest,
-            "ollama_url": OLLAMA_BASE_URL,
-            "model_info_error": str(e),
-        }
+    resp = httpx.post(
+        f"{OLLAMA_BASE_URL}/api/show",
+        json={"name": MODEL_NAME},
+        timeout=15.0,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    # Ollama returns the digest in modelinfo or details
+    digest = (
+        data.get("details", {}).get("parent_model", "")
+        or data.get("modelinfo", {}).get("general.basename", "")
+        or ""
+    )
+    # Fall back: hash the full model info blob for a stable identifier
+    if not digest:
+        model_files = json.dumps(data.get("model_info", {}), sort_keys=True)
+        digest = hashlib.sha256(model_files.encode()).hexdigest()
+    return {
+        "model_name": MODEL_NAME,
+        "model_digest": digest,
+        "ollama_url": OLLAMA_BASE_URL,
+    }
 
 
 def wait_for_ollama(max_wait_seconds: int = 120) -> None:
@@ -205,24 +199,22 @@ def _extract_direct(raw_credential: dict, oracle_type: str = "medical_board") ->
 
     extracted = {}
 
-    if oracle_type == "employment":
-        # Employment fast path
+    if oracle_type == "attorney":
+        # Attorney fast path — data.ny.gov API returns clean structured JSON
         for field in credential_fields:
             val = raw_credential.get(field)
             if val is not None:
-                if field == "years_tenure":
+                if field in ("year_admitted", "years_practicing"):
                     try:
                         extracted[field] = int(val)
                     except (TypeError, ValueError):
                         pass
                 else:
                     extracted[field] = val
-            elif field == "years_tenure" and raw_credential.get("start_date"):
+            elif field == "years_practicing" and raw_credential.get("year_admitted"):
                 try:
-                    from dateutil.parser import parse as parse_date
-                    start = parse_date(raw_credential["start_date"])
-                    extracted["years_tenure"] = (datetime.now() - start).days // 365
-                except Exception:
+                    extracted["years_practicing"] = datetime.now().year - int(raw_credential["year_admitted"])
+                except (TypeError, ValueError):
                     pass
     else:
         # Medical board fast path (original logic)
@@ -293,29 +285,28 @@ def extract_credential_facts(raw_credential: dict, oracle_type: str = "medical_b
     config = _EXTRACTION_CONFIGS.get(oracle_type, _EXTRACTION_CONFIGS["medical_board"])
     credential_fields = config["credential_fields"]
 
-    # Fast path — oracle already gave us clean data
-    direct = _extract_direct(raw_credential, oracle_type)
-    if direct:
-        print(f"[extractor] Fast-path extraction succeeded (oracle_type={oracle_type})")
-        return {
-            "extracted_facts": direct,
-            "model_info": get_model_info(),
-            "extraction_method": "direct",
-        }
-
-    # LLM path — call Ollama with oracle-type-specific prompt
+    # Props L3 — ALWAYS run the LLM so the model hash in the attestation is genuine.
+    # The pinned model must actually process the data for L3 to be real, not just
+    # a hash sitting in the certificate. Direct extraction is only a fallback if the
+    # LLM is unavailable (e.g. Ollama sidecar not running in local dev).
     print(f"[extractor] Calling {MODEL_NAME} for extraction (oracle_type={oracle_type})")
     raw_json = json.dumps(raw_credential, indent=2)
     prompt = config["prompt"].format(raw_json=raw_json)
 
+    extraction_method = "llm"
     try:
         response_text = _ollama_generate(prompt)
         print(f"[extractor] LLM response: {response_text[:120]}")
         extracted = _parse_llm_response(response_text)
     except Exception as e:
-        # Last resort: fall back to direct extraction with whatever we have
-        print(f"[extractor] LLM failed ({e}), using partial direct extraction")
-        extracted = _extract_direct(raw_credential, oracle_type) or {}
+        # Props L3 integrity: the pinned model MUST process the data.
+        # If LLM is unavailable, fail the request — don't silently degrade.
+        # Direct extraction would mean the "model hash" in the attestation is a lie.
+        print(f"[extractor] LLM unavailable ({e}) — FAILING (L3 integrity requires model)")
+        raise RuntimeError(
+            f"LLM extraction failed: {e}. Props L3 requires the pinned model to process data. "
+            f"Ensure Ollama sidecar is running with {MODEL_NAME}."
+        )
 
     # Ensure all expected keys exist (null if missing)
     for key in credential_fields:
@@ -324,7 +315,7 @@ def extract_credential_facts(raw_credential: dict, oracle_type: str = "medical_b
     return {
         "extracted_facts": extracted,
         "model_info": get_model_info(),
-        "extraction_method": "llm",
+        "extraction_method": extraction_method,
     }
 
 

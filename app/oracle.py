@@ -3,7 +3,7 @@ Props L1 — Oracle Layer (Props paper, section 3.1)
 ==================================================
 Pluggable oracle system. ORACLE_TARGET env var selects the data source:
   medical_board  — Chromium scrapes NY State medical board (default)
-  employment     — Mock HR portal returning employment credentials
+  attorney       — Real NY attorney registry via data.ny.gov Open Data API
 
 Both oracle types produce the same envelope format (oracle_authenticated,
 data_hash, etc.), so the downstream pipeline (L3 extraction, L4 redaction,
@@ -18,8 +18,15 @@ WHY CHROMIUM INSIDE THE ENCLAVE (medical_board oracle):
 - The data hash computed here is included in the TDX attestation quote,
   proving that THIS data (unmodified) is what the enclave processed.
 
+WHY data.ny.gov API (attorney oracle):
+- Same TLS pinning pattern — data.ny.gov fingerprint pinned inside enclave.
+- NY Open Data Socrata API returns real attorney registration records.
+- No scraping needed — structured JSON from an authoritative government source.
+- Demonstrates that Props works with any TLS data source (web scrape OR API).
+
 Fetch mode:
-  license_lookup — searches op.nysed.gov/verification-search by license number.
+  license_lookup    — searches op.nysed.gov/verification-search by license number.
+  attorney_lookup   — queries data.ny.gov/resource/eqw2-r5nb.json by registration number.
   HTML selectors verified against the live portal on 2026-03-16.
 
 Configurable profession via ORACLE_PROFESSION env var (default: Physician).
@@ -41,14 +48,14 @@ from datetime import datetime, timezone
 
 # Playwright is only needed for the medical_board oracle (Chromium-in-TEE).
 # Lazy-imported inside _fetch_credential_async to avoid import errors when
-# running the employment oracle locally without Playwright installed.
+# running the attorney oracle locally without Playwright installed.
 # from playwright.async_api import async_playwright, Page
 
 # ---------------------------------------------------------------------------
 # Oracle Target Selection (S8 — Pluggable Oracle)
 # Props L1 — section 3.1: same pipeline, different data source.
 # medical_board = real Chromium scrape of NYSED registry (default)
-# employment    = mock HR portal (demo: protocol works for any TLS source)
+# attorney      = real NY attorney registry via data.ny.gov Socrata API
 # ---------------------------------------------------------------------------
 ORACLE_TARGET = os.environ.get("ORACLE_TARGET", "medical_board")
 
@@ -344,92 +351,167 @@ async def _scrape_modal(page, license_number: str, profession: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Employment Oracle — Mock HR Portal (S8 — Pluggable Oracle)
-# Props L1 — same oracle contract, different data source.
-# In production this would scrape a real HR portal (Workday, ADP, etc.)
-# using the same Chromium-in-TEE pattern. For the hackathon demo we return
-# realistic mock data to show the pipeline is source-agnostic.
+# Attorney Oracle — NY Attorney Registry via data.ny.gov (S8/S10)
+# Props L1 — same oracle contract, different REAL data source.
+# Uses the NY Open Data Socrata API (data.ny.gov) to fetch real attorney
+# registration records. TLS fingerprint of data.ny.gov is pinned inside
+# the enclave — same security model as the medical board oracle.
 # ---------------------------------------------------------------------------
 
-# Realistic employment records keyed by employee_id
-_EMPLOYMENT_RECORDS: dict[str, dict] = {
-    "EMP-7291": {
-        "employee_name": "Marcus Webb",
-        "employee_id": "EMP-7291",
-        "ssn_last_four": "4821",
-        "company": "Major Technology Company",
-        "tier": "FAANG",
-        "role": "Senior Software Engineer",
-        "team": "Infrastructure",
-        "department": "Platform Engineering",
-        "years_tenure": 7,
-        "employment_status": "Current employee",
-        "start_date": "March 15, 2019",
-        "office_location": "San Francisco, CA",
-        "manager_name": "Jennifer Liu",
-    },
-    "EMP-3044": {
-        "employee_name": "Priya Chakraborty",
-        "employee_id": "EMP-3044",
-        "ssn_last_four": "9137",
-        "company": "Global Investment Bank",
-        "tier": "Bulge Bracket",
-        "role": "Vice President, Risk Analytics",
-        "team": "Quantitative Risk",
-        "department": "Risk Management",
-        "years_tenure": 11,
-        "employment_status": "Current employee",
-        "start_date": "June 01, 2015",
-        "office_location": "New York, NY",
-        "manager_name": "David Rothstein",
-    },
-    "DEFAULT": {
-        "employee_name": "Anonymous Employee",
-        "employee_id": "EMP-0000",
-        "ssn_last_four": "0000",
-        "company": "Major Technology Company",
-        "tier": "FAANG",
-        "role": "Senior Software Engineer",
-        "team": "Infrastructure",
-        "department": "Platform Engineering",
-        "years_tenure": 7,
-        "employment_status": "Current employee",
-        "start_date": "January 10, 2019",
-        "office_location": "Seattle, WA",
-        "manager_name": "Redacted Manager",
-    },
-}
+NY_ATTORNEY_API = "https://data.ny.gov/resource/eqw2-r5nb.json"
+NY_ATTORNEY_HOSTNAME = "data.ny.gov"
+
+# SHA-256 TLS fingerprint of data.ny.gov — pin inside enclave.
+# Update when cert renews:
+#   openssl s_client -connect data.ny.gov:443 -servername data.ny.gov \
+#     </dev/null 2>/dev/null | openssl x509 -fingerprint -sha256 -noout
+NY_ATTORNEY_TLS_FINGERPRINT = os.environ.get(
+    "NY_ATTORNEY_TLS_FINGERPRINT",
+    "49653D147D6180FDC9BEBF2A971930CFD5AAD671059781DA3F5494292434F8C9",
+)
 
 
-def _fetch_employment_credential(credentials: dict) -> dict:
+def _verify_attorney_tls() -> tuple[bool, str]:
     """
-    Props L1 — Mock employment oracle (section 3.1).
-    Same oracle envelope contract as the medical board oracle.
-
-    In production: Chromium authenticates against Workday/ADP HR portal,
-    scrapes the authenticated employment record. Same TLS pinning, same
-    data_hash, same oracle_authenticated flag.
-
-    For hackathon: returns realistic mock data from _EMPLOYMENT_RECORDS.
+    Props L1 — TLS fingerprint verification for data.ny.gov.
+    Same pattern as NYSED medical board pin check.
     """
-    employee_id = credentials.get("employee_id", "DEFAULT")
-    record = _EMPLOYMENT_RECORDS.get(employee_id, _EMPLOYMENT_RECORDS["DEFAULT"]).copy()
+    if os.environ.get("SKIP_TLS_VERIFY", "false").lower() == "true":
+        return True, "skipped"
+    pinned = NY_ATTORNEY_TLS_FINGERPRINT.upper().replace(":", "").replace(" ", "")
+    if not pinned:
+        # No fingerprint configured — reject (L1 requires TLS pinning)
+        logger.warning("[attorney-oracle] No TLS fingerprint configured — rejecting")
+        return False, "no-pin-configured"
+    try:
+        live = get_tls_fingerprint(NY_ATTORNEY_HOSTNAME)
+        return live == pinned, live
+    except Exception as e:
+        return False, f"error:{e}"
 
-    print(f"[oracle/employment] Fetching employment record for {employee_id}")
+
+def _fetch_attorney_credential(credentials: dict) -> dict:
+    """
+    Props L1 — Real attorney oracle (section 3.1).
+    Fetches a real attorney registration record from the NY Open Data API
+    (data.ny.gov Socrata endpoint). Same oracle envelope contract as
+    the medical board oracle.
+
+    Input: { registration_number: "1234567" }
+    The API returns: name, company, address, year_admitted, law_school,
+                     status, judicial_department, county, etc.
+    """
+    import httpx
+
+    registration_number = credentials.get("registration_number", "").strip()
+    if not registration_number:
+        raise ValueError("registration_number is required for attorney oracle")
+
+    # Props L1 — TLS fingerprint verification (section 3.1)
+    fp_ok, live_fp = _verify_attorney_tls()
+    if not fp_ok:
+        raise ValueError(
+            f"TLS fingerprint mismatch on {NY_ATTORNEY_HOSTNAME}. "
+            f"Got: {live_fp}. This is not the authoritative NY attorney registry."
+        )
+    print(f"[oracle/attorney] TLS verified for {NY_ATTORNEY_HOSTNAME} ({live_fp[:16]}...)")
+
+    # Query the Socrata API by registration number
+    print(f"[oracle/attorney] Fetching attorney record: registration_number={registration_number}")
+    try:
+        resp = httpx.get(
+            NY_ATTORNEY_API,
+            params={"registration_number": registration_number},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        records = resp.json()
+    except Exception as e:
+        raise ValueError(f"Attorney API request failed: {e}")
+
+    if not records:
+        raise ValueError(
+            f"No attorney found with registration_number={registration_number}. "
+            "Verify at https://data.ny.gov — the number must be a valid NY attorney registration."
+        )
+
+    raw = records[0]  # first (and should be only) match
+
+    # Build clean credential record from API response
+    credential = {}
+
+    # Identity fields (will be stripped by L4 redaction)
+    full_name_parts = [
+        raw.get("first_name", ""),
+        raw.get("middle_name", ""),
+        raw.get("last_name", ""),
+        raw.get("suffix", ""),
+    ]
+    full_name = " ".join(p.strip() for p in full_name_parts if p.strip())
+    if full_name:
+        credential["name"] = full_name.title()
+
+    if raw.get("registration_number"):
+        credential["registration_number"] = raw["registration_number"]
+
+    # Address (identity)
+    address_parts = [
+        raw.get("street_1", ""),
+        raw.get("street_2", ""),
+        raw.get("city", ""),
+        raw.get("state", ""),
+        raw.get("zip", ""),
+    ]
+    address = ", ".join(p.strip() for p in address_parts if p.strip())
+    if address:
+        credential["address"] = address.title()
+
+    if raw.get("phone_number"):
+        credential["phone_number"] = raw["phone_number"]
+
+    # Disclosable fields
+    if raw.get("company_name"):
+        credential["company_name"] = raw["company_name"].title()
+
+    if raw.get("year_admitted"):
+        credential["year_admitted"] = int(raw["year_admitted"])
+        # Compute years_practicing
+        credential["years_practicing"] = datetime.now().year - int(raw["year_admitted"])
+
+    if raw.get("judicial_department_of_admission"):
+        dept = raw["judicial_department_of_admission"]
+        credential["judicial_department"] = f"Judicial Department {dept}"
+
+    if raw.get("law_school"):
+        credential["law_school"] = raw["law_school"].title()
+
+    if raw.get("status"):
+        status = raw["status"].strip()
+        if status.lower() in ("currently registered",):
+            credential["standing"] = "In good standing"
+        else:
+            credential["standing"] = status
+
+    if raw.get("county"):
+        credential["county"] = raw["county"]
+
+    credential["jurisdiction"] = "New York State"
+
+    print(f"[oracle/attorney] Scraped {len(credential)} fields — name: {credential.get('name', 'MISSING')}")
 
     # Props L1/L5 — data integrity hash (same as medical board oracle)
-    raw_json = json.dumps(record, sort_keys=True)
+    raw_json = json.dumps(credential, sort_keys=True)
     data_hash = hashlib.sha256(raw_json.encode()).hexdigest()
 
     return {
-        "credential": record,
+        "credential": credential,
         "oracle_authenticated": True,
-        "oracle_source": "hr-portal.internal.example.com",
-        "oracle_tls_fingerprint": hashlib.sha256(b"mock-hr-portal-tls-cert").hexdigest().upper(),
+        "oracle_source": NY_ATTORNEY_HOSTNAME,
+        "oracle_tls_fingerprint": live_fp if live_fp != "skipped" else "skipped",
         "data_hash": data_hash,
         "fetch_timestamp": datetime.now(timezone.utc).isoformat(),
-        "fetch_mode": "employee_lookup",
-        "oracle_type": "employment",
+        "fetch_mode": "attorney_lookup",
+        "oracle_type": "attorney",
     }
 
 
@@ -488,7 +570,7 @@ def fetch_credential(credentials_payload, oracle_target: str | None = None) -> d
     Args:
         credentials_payload: dict with credentials or RSA-encrypted JSON string.
             medical_board: {license_number, profession (optional)}
-            employment:    {employee_id (optional)}
+            attorney:      {registration_number}
         oracle_target: override for ORACLE_TARGET env var (for testing)
 
     Returns oracle envelope with: credential, oracle_authenticated, oracle_source,
@@ -501,20 +583,20 @@ def fetch_credential(credentials_payload, oracle_target: str | None = None) -> d
 
     target = (oracle_target or ORACLE_TARGET).strip().lower()
 
-    if target == "employment":
-        return _fetch_employment_credential(credentials)
+    if target == "attorney":
+        return _fetch_attorney_credential(credentials)
     elif target == "medical_board":
         return asyncio.run(_oracle_main(credentials))
     else:
         raise ValueError(
             f"Unknown ORACLE_TARGET '{target}'. "
-            f"Valid targets: medical_board, employment"
+            f"Valid targets: medical_board, attorney"
         )
 
 
 # ---------------------------------------------------------------------------
 # Direct test: python app/oracle.py
-# Set ORACLE_TARGET=employment to test employment oracle.
+# Set ORACLE_TARGET=attorney to test attorney oracle.
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import sys
@@ -522,11 +604,11 @@ if __name__ == "__main__":
     target = os.environ.get("ORACLE_TARGET", "medical_board")
     print(f"[oracle] Testing oracle: ORACLE_TARGET={target}")
 
-    if target == "employment":
-        employee_id = os.environ.get("TEST_EMPLOYEE_ID", "EMP-7291")
-        print(f"[oracle] Employee ID: {employee_id}")
+    if target == "attorney":
+        reg_number = os.environ.get("TEST_REGISTRATION_NUMBER", "1190404")
+        print(f"[oracle] Registration number: {reg_number}")
         try:
-            result = fetch_credential({"employee_id": employee_id})
+            result = fetch_credential({"registration_number": reg_number})
             print("[oracle] SUCCESS:")
             print(json.dumps(result, indent=2))
         except Exception as e:

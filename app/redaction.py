@@ -44,30 +44,29 @@ _MEDICAL_DISCLOSABLE_FIELDS: frozenset[str] = frozenset({
     "standing",
 })
 
-# Employment oracle (S8)
-_EMPLOYMENT_IDENTITY_FIELDS: frozenset[str] = frozenset({
-    "employee_name",
-    "employee_id",
-    "ssn_last_four",
-    "start_date",
-    "office_location",
-    "manager_name",
+# Attorney oracle (S10 — real NY attorney registry via data.ny.gov)
+_ATTORNEY_IDENTITY_FIELDS: frozenset[str] = frozenset({
+    "name",
+    "registration_number",
+    "address",
+    "phone_number",
+    "company_name",
 })
 
-_EMPLOYMENT_DISCLOSABLE_FIELDS: frozenset[str] = frozenset({
-    "company",
-    "tier",
-    "role",
-    "team",
-    "department",
-    "years_tenure",
-    "employment_status",
+_ATTORNEY_DISCLOSABLE_FIELDS: frozenset[str] = frozenset({
+    "year_admitted",
+    "years_practicing",
+    "judicial_department",
+    "law_school",
+    "standing",
+    "county",
+    "jurisdiction",
 })
 
 # Registry of field configs keyed by oracle_type
 _FIELD_CONFIGS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "medical_board": (_MEDICAL_IDENTITY_FIELDS, _MEDICAL_DISCLOSABLE_FIELDS),
-    "employment": (_EMPLOYMENT_IDENTITY_FIELDS, _EMPLOYMENT_DISCLOSABLE_FIELDS),
+    "attorney": (_ATTORNEY_IDENTITY_FIELDS, _ATTORNEY_DISCLOSABLE_FIELDS),
 }
 
 # Backwards-compatible module-level constants (used by extractor.py, etc.)
@@ -183,27 +182,26 @@ if __name__ == "__main__":
     assert "name" not in result["disclosed"], "FAIL: identity field leaked!"
     print("PASS: identity field correctly blocked")
 
-    # S8 — Employment oracle tests
-    print("\n=== Test 4: employment oracle — disclose role + years_tenure ===")
-    employment_credential = {
-        "employee_name": "Marcus Webb",
-        "employee_id": "EMP-7291",
-        "ssn_last_four": "4821",
-        "company": "Major Technology Company",
-        "tier": "FAANG",
-        "role": "Senior Software Engineer",
-        "team": "Infrastructure",
-        "department": "Platform Engineering",
-        "years_tenure": 7,
-        "employment_status": "Current employee",
-        "start_date": "March 15, 2019",
-        "office_location": "San Francisco, CA",
-        "manager_name": "Jennifer Liu",
+    # S10 — Attorney oracle tests
+    print("\n=== Test 4: attorney oracle — disclose law_school + years_practicing ===")
+    attorney_credential = {
+        "name": "Raymond J. Aab",
+        "registration_number": "1190404",
+        "address": "233 Broadway Rm 1800, New York, Ny, 10279",
+        "phone_number": "(212) 406-1700",
+        "company_name": "Raymond J. Aab Attorney At Law",
+        "year_admitted": 1978,
+        "years_practicing": 48,
+        "judicial_department": "Judicial Department 1",
+        "law_school": "Fordham University School Of Law",
+        "standing": "In good standing",
+        "county": "New York",
+        "jurisdiction": "New York State",
     }
     result = apply_redaction_filter(
-        employment_credential, ["role", "years_tenure", "company"], oracle_type="employment"
+        attorney_credential, ["law_school", "years_practicing", "standing"], oracle_type="attorney"
     )
     print(json.dumps(result, indent=2))
-    assert "employee_name" not in result["disclosed"], "FAIL: employee_name leaked!"
-    assert "role" in result["disclosed"], "FAIL: role should be disclosed!"
-    print("PASS: employment redaction working correctly")
+    assert "name" not in result["disclosed"], "FAIL: name leaked!"
+    assert "law_school" in result["disclosed"], "FAIL: law_school should be disclosed!"
+    print("PASS: attorney redaction working correctly")

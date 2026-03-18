@@ -1,0 +1,74 @@
+# Props Oracle Configuration
+# ===========================
+# Each oracle defines a new data source for the Props pipeline.
+# Same enclave. Same attestation. Same redaction. Different oracle.
+#
+# To add a new oracle:
+#   1. Define the oracle below with its TLS fingerprint and field classification
+#   2. Implement the fetch function in app/oracle.py
+#   3. Add extraction prompt and field config in app/extractor.py
+#   4. Add field config in app/redaction.py
+#   5. Set ORACLE_TARGET=<name> in docker-compose.yaml
+#
+# The pipeline (L2 attestation, L3 LLM, L4 redaction, L5 adversarial defense)
+# works identically regardless of which oracle is configured.
+
+oracles:
+  # Currently implemented
+  medical_board:
+    name: "NY State Medical Board"
+    hostname: "www.op.nysed.gov"
+    tls_fingerprint: "0D53B7BB43B892DC70D34143113D16EC7A3628714D0104F193100A792BBC68D8"
+    fetch_method: "chromium"  # headless browser scrape
+    identity_fields:
+      - name
+      - license_number
+      - address
+      - date_of_birth
+      - medical_school
+      - degree_date
+      - initial_registration_date
+      - registered_through
+    disclosable_fields:
+      - specialty
+      - years_active
+      - jurisdiction
+      - standing
+
+  attorney:
+    name: "NY Attorney Registry"
+    hostname: "data.ny.gov"
+    tls_fingerprint: "49653D147D6180FDC9BEBF2A971930CFD5AAD671059781DA3F5494292434F8C9"
+    fetch_method: "api"  # structured JSON API (Socrata)
+    api_endpoint: "https://data.ny.gov/resource/eqw2-r5nb.json"
+    identity_fields:
+      - name
+      - registration_number
+      - address
+      - phone_number
+      - company_name
+    disclosable_fields:
+      - year_admitted
+      - years_practicing
+      - judicial_department
+      - law_school
+      - standing
+      - county
+      - jurisdiction
+
+  # Example: how a third party would add a new oracle
+  # uk_medical_register:
+  #   name: "UK General Medical Council"
+  #   hostname: "www.gmc-uk.org"
+  #   tls_fingerprint: "<sha256 of gmc-uk.org TLS cert>"
+  #   fetch_method: "api"
+  #   api_endpoint: "https://www.gmc-uk.org/api/doctors"
+  #   identity_fields:
+  #     - name
+  #     - gmc_number
+  #     - address
+  #   disclosable_fields:
+  #     - specialty
+  #     - years_registered
+  #     - status
+  #     - qualification
