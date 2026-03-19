@@ -34,7 +34,7 @@ import httpx
 # ---------------------------------------------------------------------------
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-MODEL_NAME = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
+MODEL_NAME = os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
 
 # Props L3 — Pinned model digest (section 3.2)
 # This is the expected Ollama manifest digest for our approved model.
@@ -43,9 +43,10 @@ MODEL_NAME = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
 # Props paper requires. The digest is part of the enclave measurement
 # because changing it requires a code change → new MRTD.
 #
-# To update: pull the new model, run `ollama show llama3.2:3b --json`,
+# To update: pull the new model, run `ollama show <model> --json`,
 # copy the "digest" field here, and redeploy.
-PINNED_MODEL_DIGEST = os.environ.get("PINNED_MODEL_DIGEST", "sha256:a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3be36a26571d")
+# Set to "" to discover the digest on first deploy (logged to stdout).
+PINNED_MODEL_DIGEST = os.environ.get("PINNED_MODEL_DIGEST", "")
 
 # Set SKIP_MODEL_PIN=true ONLY for local development without Ollama.
 SKIP_MODEL_PIN = os.environ.get("SKIP_MODEL_PIN", "false").lower() == "true"

@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
 
   props-oracle:
-    image: vetskiver/props-oracle:s21
+    image: vetskiver/props-oracle:s22
     ports:
       - "8080:8080"
     volumes:
@@ -30,7 +30,7 @@ services:
       - SKIP_ENCRYPTION=${SKIP_ENCRYPTION:-false}
       # Props L3: Ollama sidecar URL and model name
       - OLLAMA_URL=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
       # Props L2 extension — on-chain certificate registry
       # Default: Base Sepolia (Coinbase L2, chain 84532)
       # To use Ethereum Sepolia instead, override CHAIN_* vars
