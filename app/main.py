@@ -481,6 +481,234 @@ async def tls_status():
 
 
 # ---------------------------------------------------------------------------
+# GET /api/developer — Developer API documentation for platform integrators
+# Accelerator fit: makes the "this is a protocol" story concrete by showing
+# how newspapers, social media, and forums integrate Props verification.
+# ---------------------------------------------------------------------------
+
+@app.get("/api/developer")
+async def developer_api():
+    """
+    Developer API guide for platform integrators.
+
+    Props is a protocol, not just an app. Any platform (news site, social media,
+    forum) can integrate Props verification without an API key for read operations.
+    """
+    base_url = "{your-props-instance}"
+
+    return {
+        "service": "Props Protocol — Developer API",
+        "version": "0.6.0",
+        "description": (
+            "Props provides verified anonymous credentials as a protocol. "
+            "Read operations (verification) are public and require no API key. "
+            "Write operations (certificate creation) require enclave access."
+        ),
+        "endpoints": {
+            "public_read": {
+                "description": "Public endpoints — no API key required. Any platform can verify certificates.",
+                "endpoints": [
+                    {
+                        "method": "GET",
+                        "path": "/api/verify/{certificate_id}",
+                        "description": "Verify a certificate's Ed25519 signature, TDX attestation, and on-chain status. Returns credential facts if valid.",
+                        "example": f"GET {base_url}/api/verify/550e8400-e29b-41d4-a716-446655440000",
+                        "response_fields": {
+                            "valid": "boolean — signature check result",
+                            "credential": "object — disclosed credential facts (only if valid)",
+                            "tdx_verification": "object — TDX hardware attestation verification",
+                            "on_chain_verified": "boolean — certificate hash found on Base Sepolia",
+                            "oracle_source": "string — authoritative data source",
+                        },
+                    },
+                    {
+                        "method": "GET",
+                        "path": "/api/certificate/{certificate_id}",
+                        "description": "Fetch the full signed certificate JSON. Contains all data needed for independent verification.",
+                        "example": f"GET {base_url}/api/certificate/550e8400-e29b-41d4-a716-446655440000",
+                    },
+                    {
+                        "method": "GET",
+                        "path": "/api/oracles",
+                        "description": "List available oracle types with their disclosable fields and data sources.",
+                    },
+                    {
+                        "method": "GET",
+                        "path": "/api/info",
+                        "description": "Service status and configuration.",
+                    },
+                ],
+            },
+            "enclave_write": {
+                "description": "Write endpoints — require running inside a Props enclave instance.",
+                "endpoints": [
+                    {
+                        "method": "POST",
+                        "path": "/api/verify",
+                        "description": "Full pipeline: oracle fetch → LLM extraction → redaction → attestation. Returns NDJSON stream.",
+                        "body": {
+                            "credentials": "object — {license_number} for medical, {registration_number} for attorney",
+                            "disclosed_fields": "array — field names to disclose (e.g. ['specialty', 'years_active'])",
+                        },
+                    },
+                ],
+            },
+        },
+        "integration_guide": {
+            "step_1": "Embed a Props badge in your published content with a verify link",
+            "step_2": "The verify link points to GET /api/verify/{certificate_id}",
+            "step_3": "Your platform calls this endpoint to display credential facts to readers",
+            "step_4": "For trustless verification, read the on-chain hash directly from Base Sepolia (contract: 0x07a7c1efc53923b202191a888fad41e54cae7ca6)",
+            "embed_example": '<a href="https://props.example/verify/{cert_id}">⬡ Props · Attested | Board-certified cardiologist · 17 yrs</a>',
+        },
+        "on_chain_verification": {
+            "chain": "Base Sepolia (chain ID 84532)",
+            "contract": "0x07a7c1efc53923b202191a888fad41e54cae7ca6",
+            "method": "verify(bytes32 certificateId) → bytes32 attestationHash",
+            "description": (
+                "The contract stores keccak256(certificate_id) → attestation_hash. "
+                "Anyone can read this mapping via eth_call — no API key, no server trust. "
+                "Certificates survive independently of the Props server."
+            ),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET /api/oracles — Oracle registry / marketplace
+# Accelerator fit: makes the "pluggable oracle marketplace" story concrete.
+# Each oracle is self-documenting: source, fields, TLS pin, auth model.
+# Third parties can see exactly what adding a new oracle requires.
+# ---------------------------------------------------------------------------
+
+# Oracle registry — structured metadata for each oracle type
+_ORACLE_REGISTRY = {
+    "medical_board": {
+        "name": "NY State Medical Board",
+        "description": "Licensed medical professionals in New York State via NYSED (nysed.gov)",
+        "data_source": "https://www.op.nysed.gov/verification-search",
+        "data_source_type": "government_registry",
+        "auth_model": "tls_pinned_public_registry",
+        "auth_description": (
+            "Public verification search — no login required. TLS certificate fingerprint "
+            "is pinned inside the enclave. Same endpoint hospitals use to verify doctors."
+        ),
+        "tls_hostname": "www.op.nysed.gov",
+        "credential_type": "medical_license",
+        "jurisdiction": "New York State, USA",
+        "lookup_field": "license_number",
+        "lookup_description": "6-digit NYSED license number (e.g. 209311)",
+        "identity_fields": sorted(["name", "license_number", "address", "date_of_birth",
+                                    "medical_school", "degree_date", "initial_registration_date",
+                                    "registered_through"]),
+        "disclosable_fields": sorted(["specialty", "years_active", "jurisdiction", "standing"]),
+        "status": "live",
+        "verified_date": "2026-03-16",
+    },
+    "attorney": {
+        "name": "NY Attorney Registry",
+        "description": "Registered attorneys in New York State via NY Open Data (data.ny.gov)",
+        "data_source": "https://data.ny.gov/resource/eqw2-r5nb.json",
+        "data_source_type": "government_api",
+        "auth_model": "tls_pinned_government_api",
+        "auth_description": (
+            "Structured JSON from NY Open Data Socrata API. TLS certificate fingerprint "
+            "pinned inside the enclave. Authoritative state government source."
+        ),
+        "tls_hostname": "data.ny.gov",
+        "credential_type": "bar_registration",
+        "jurisdiction": "New York State, USA",
+        "lookup_field": "registration_number",
+        "lookup_description": "7-digit NY attorney registration number (e.g. 1190404)",
+        "identity_fields": sorted(["name", "registration_number", "address",
+                                    "phone_number", "company_name"]),
+        "disclosable_fields": sorted(["year_admitted", "years_practicing", "judicial_department",
+                                       "law_school", "standing", "county", "jurisdiction"]),
+        "status": "live",
+        "verified_date": "2026-03-16",
+    },
+}
+
+# Roadmap oracles — show the marketplace vision without building them
+_ORACLE_ROADMAP = [
+    {
+        "name": "Employment Verification",
+        "description": "Verify current employment at a specific company without revealing identity",
+        "data_source_type": "corporate_portal",
+        "credential_type": "employment",
+        "status": "roadmap",
+        "use_case": "Whistleblower employment verification (Marcus Webb scenario)",
+    },
+    {
+        "name": "Academic Credentials",
+        "description": "Verify degree and institution from university registrar portals",
+        "data_source_type": "university_portal",
+        "credential_type": "academic_degree",
+        "status": "roadmap",
+        "use_case": "Anonymous expert commentary with verified academic credentials",
+    },
+    {
+        "name": "Professional Engineering License",
+        "description": "Licensed engineers via state licensing board registries",
+        "data_source_type": "government_registry",
+        "credential_type": "engineering_license",
+        "status": "roadmap",
+        "use_case": "Infrastructure safety whistleblowing with verified engineering credentials",
+    },
+]
+
+
+@app.get("/api/oracles")
+async def list_oracles():
+    """
+    Props Oracle Registry — lists all available and planned oracle types.
+
+    This endpoint serves two purposes:
+    1. Platform integrators can discover what credential types Props supports
+    2. The structured format shows exactly what adding a new oracle requires,
+       making the "oracle marketplace" story concrete for accelerator judges
+
+    Adding a new oracle to Props requires:
+      - A TLS-accessible authoritative data source
+      - A TLS certificate fingerprint to pin
+      - Field classification (identity vs disclosable)
+      - An extraction prompt for the LLM
+      - That's it. Same enclave, same attestation, same redaction.
+    """
+    return {
+        "protocol": "Props Anonymous Expert Oracle",
+        "description": (
+            "Props is a protocol with pluggable oracles. Each oracle connects "
+            "the TEE to a different authoritative data source. Same enclave, "
+            "same attestation, same redaction — different oracle."
+        ),
+        "active_oracle": ORACLE_TARGET,
+        "live_oracles": _ORACLE_REGISTRY,
+        "roadmap_oracles": _ORACLE_ROADMAP,
+        "how_to_add_oracle": {
+            "step_1": "Identify a TLS-accessible authoritative data source",
+            "step_2": "Pin the TLS certificate fingerprint in oracle.py (becomes part of enclave measurement)",
+            "step_3": "Classify fields as identity (always stripped) vs disclosable (user-controlled)",
+            "step_4": "Write an extraction prompt for the LLM in extractor.py",
+            "step_5": "Add field configs to redaction.py — same pattern as medical_board/attorney",
+            "step_6": "Rebuild Docker image → new enclave measurement → deploy to Phala Cloud",
+            "note": (
+                "The oracle is the only layer that changes. The TEE, attestation, "
+                "redaction, and signing infrastructure remain identical. This is why "
+                "Props is a protocol, not an application."
+            ),
+        },
+        "marketplace_vision": (
+            "The oracle registry becomes a marketplace where data source operators "
+            "(hospitals, bar associations, universities, employers) register their "
+            "endpoints. Props enclave operators attest against these sources. "
+            "Certificate consumers (newspapers, platforms, courts) verify on-chain. "
+            "Three-sided marketplace: data sources × enclave operators × consumers."
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # GET /api/public-key — RSA public key for client-side credential encryption
 # Props security: credentials are encrypted in the browser BEFORE leaving the
 # user's device. Only the enclave can decrypt them.
