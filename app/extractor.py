@@ -117,8 +117,14 @@ IDENTITY_FIELDS = _MEDICAL_IDENTITY_FIELDS
 # Ollama helpers
 # ---------------------------------------------------------------------------
 
-def _ollama_generate(prompt: str) -> str:
-    """Calls Ollama /api/generate and returns the response text."""
+def _ollama_generate(prompt: str, max_retries: int = 3) -> str:
+    """Calls Ollama /api/generate and returns the response text.
+
+    Retries on transient failures (connection errors, 5xx) with short backoff.
+    A single Ollama hiccup during a 30-second pipeline run should not kill the
+    entire request — Props L3 integrity only requires that the model eventually
+    runs, not that the first attempt succeeds.
+    """
     payload = {
         "model": MODEL_NAME,
         "prompt": prompt,
@@ -128,13 +134,33 @@ def _ollama_generate(prompt: str) -> str:
             "num_predict": 200,
         },
     }
-    resp = httpx.post(
-        f"{OLLAMA_BASE_URL}/api/generate",
-        json=payload,
-        timeout=60.0,
-    )
-    resp.raise_for_status()
-    return resp.json()["response"].strip()
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = httpx.post(
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json=payload,
+                timeout=60.0,
+            )
+            resp.raise_for_status()
+            return resp.json()["response"].strip()
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as e:
+            last_error = e
+            if attempt < max_retries:
+                wait = attempt * 2  # 2s, 4s
+                print(f"[extractor] Ollama transient error (attempt {attempt}/{max_retries}), retrying in {wait}s: {e}")
+                import time; time.sleep(wait)
+            else:
+                print(f"[extractor] Ollama failed after {max_retries} attempts: {e}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code >= 500 and attempt < max_retries:
+                last_error = e
+                wait = attempt * 2
+                print(f"[extractor] Ollama {e.response.status_code} (attempt {attempt}/{max_retries}), retrying in {wait}s")
+                import time; time.sleep(wait)
+            else:
+                raise
+    raise last_error or RuntimeError("Ollama unreachable after retries")
 
 
 def get_model_info() -> dict:
@@ -147,12 +173,23 @@ def get_model_info() -> dict:
     would contain a fake hash — violating L3 integrity. We raise instead
     of silently falling back.
     """
-    resp = httpx.post(
-        f"{OLLAMA_BASE_URL}/api/show",
-        json={"name": MODEL_NAME},
-        timeout=15.0,
-    )
-    resp.raise_for_status()
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            resp = httpx.post(
+                f"{OLLAMA_BASE_URL}/api/show",
+                json={"name": MODEL_NAME},
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            last_error = None
+            break
+        except (httpx.ConnectError, httpx.ReadTimeout) as e:
+            last_error = e
+            if attempt < 3:
+                import time; time.sleep(attempt * 2)
+            else:
+                raise RuntimeError(f"Cannot reach Ollama after 3 attempts: {e}")
     data = resp.json()
 
     # Ollama /api/show returns the manifest digest as a top-level "digest" field

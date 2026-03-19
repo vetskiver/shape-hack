@@ -222,6 +222,24 @@ async def lifespan(app: FastAPI):
     # Props L3 — pull model and wait for Ollama before accepting requests
     # Skip wait if SKIP_OLLAMA_WAIT is set (for local dev without Ollama)
     skip_ollama = os.environ.get("SKIP_OLLAMA_WAIT", "false").lower() == "true"
+
+    # Production safety: detect real TDX enclave and refuse SKIP_OLLAMA_WAIT
+    if skip_ollama:
+        try:
+            from dstack_sdk import DstackClient
+            DstackClient().get_key("/props-oracle", "enclave-check")
+            # If we get here, dstack is available = real enclave
+            raise RuntimeError(
+                "SECURITY VIOLATION: SKIP_OLLAMA_WAIT=true inside a real TDX enclave. "
+                "Props L3 requires the pinned model to be running. Remove this flag and redeploy."
+            )
+        except ImportError:
+            pass  # Not in enclave — skip is fine
+        except RuntimeError:
+            raise  # Re-raise our own security violation
+        except Exception:
+            pass  # dstack not available — local dev, skip is fine
+
     if not skip_ollama:
         wait_for_ollama()
         try:

@@ -104,6 +104,45 @@ def _get_profession_code(profession_label: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Production safety — SKIP_* flags must not be used inside a real TDX enclave
+# ---------------------------------------------------------------------------
+
+def _in_real_enclave() -> bool:
+    """Detect if we are running inside a real Phala Cloud TDX enclave."""
+    try:
+        from dstack_sdk import DstackClient
+        client = DstackClient()
+        client.get_key("/props-oracle", "enclave-check")
+        return True
+    except Exception:
+        return False
+
+# Enforce at module load: if dstack is available (real enclave), SKIP flags are forbidden.
+_IS_REAL_ENCLAVE = _in_real_enclave()
+
+if _IS_REAL_ENCLAVE:
+    _skip_tls = os.environ.get("SKIP_TLS_VERIFY", "false").lower() == "true"
+    _skip_enc = os.environ.get("SKIP_ENCRYPTION", "false").lower() == "true"
+    if _skip_tls or _skip_enc:
+        _violations = []
+        if _skip_tls:
+            _violations.append("SKIP_TLS_VERIFY")
+        if _skip_enc:
+            _violations.append("SKIP_ENCRYPTION")
+        raise RuntimeError(
+            f"SECURITY VIOLATION: {', '.join(_violations)} set inside a real TDX enclave. "
+            f"These flags bypass Props L1 security guarantees and MUST NOT be used "
+            f"in production. Remove them from your environment and redeploy."
+        )
+    print("[oracle] Running inside real TDX enclave — all security checks enforced")
+else:
+    if os.environ.get("SKIP_TLS_VERIFY", "false").lower() == "true":
+        print("[oracle] WARNING: SKIP_TLS_VERIFY=true — TLS pinning disabled (local dev only)")
+    if os.environ.get("SKIP_ENCRYPTION", "false").lower() == "true":
+        print("[oracle] WARNING: SKIP_ENCRYPTION=true — RSA decryption disabled (local dev only)")
+
+
+# ---------------------------------------------------------------------------
 # TLS verification
 # ---------------------------------------------------------------------------
 
@@ -418,18 +457,32 @@ def _fetch_attorney_credential(credentials: dict) -> dict:
         )
     print(f"[oracle/attorney] TLS verified for {NY_ATTORNEY_HOSTNAME} ({live_fp[:16]}...)")
 
-    # Query the Socrata API by registration number
+    # Query the Socrata API by registration number (with retry for transient failures)
     print(f"[oracle/attorney] Fetching attorney record: registration_number={registration_number}")
-    try:
-        resp = httpx.get(
-            NY_ATTORNEY_API,
-            params={"registration_number": registration_number},
-            timeout=15.0,
-        )
-        resp.raise_for_status()
-        records = resp.json()
-    except Exception as e:
-        raise ValueError(f"Attorney API request failed: {e}")
+    last_error = None
+    records = None
+    for attempt in range(1, 4):
+        try:
+            resp = httpx.get(
+                NY_ATTORNEY_API,
+                params={"registration_number": registration_number},
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            records = resp.json()
+            last_error = None
+            break
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as e:
+            last_error = e
+            if attempt < 3:
+                import time
+                wait = attempt * 2
+                print(f"[oracle/attorney] Transient error (attempt {attempt}/3), retrying in {wait}s: {e}")
+                time.sleep(wait)
+        except Exception as e:
+            raise ValueError(f"Attorney API request failed: {e}")
+    if records is None:
+        raise ValueError(f"Attorney API unreachable after 3 attempts: {last_error}")
 
     if not records:
         raise ValueError(
