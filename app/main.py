@@ -261,11 +261,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Props Oracle", version="0.6.0", lifespan=lifespan)
 
+# CORS — allow same-origin (frontend served from this API) and the Phala Cloud
+# deployment URL. Not allow_origins=["*"] because this is a security-focused TEE
+# project — open CORS would let any site call our API from a user's browser.
+_CORS_ORIGINS = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    # Phala Cloud deployment — frontend is served from same origin, but allow
+    # explicit origin header in case of port forwarding or proxy
+    "https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network",
+]
+# Allow additional origins via env var for custom deployments
+_extra_origins = os.environ.get("CORS_ORIGINS", "").strip()
+if _extra_origins:
+    _CORS_ORIGINS.extend(o.strip() for o in _extra_origins.split(",") if o.strip())
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_CORS_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -541,13 +556,34 @@ def verify_credential_endpoint(request: VerifyRequest):
         certificate["extraction_method"] = extraction_method
         certificates[certificate["certificate_id"]] = certificate
 
-        # On-chain storage (best-effort)
+        # On-chain storage (best-effort, with explicit warning if unavailable)
         from onchain import store_certificate as store_cert_onchain, CHAIN_EXPLORER
         tx_hash = store_cert_onchain(certificate["certificate_id"], certificate["payload_hash"])
         certificate["on_chain_tx"] = tx_hash
         certificate["basescan_url"] = f"{CHAIN_EXPLORER}/tx/{tx_hash}" if tx_hash else None
 
-        yield json.dumps({"stage": "attestation", "status": "done", "on_chain": bool(tx_hash)}) + "\n"
+        on_chain_warning = None
+        if not tx_hash:
+            # Distinguish between missing config and transaction failure
+            _contract = os.environ.get("CONTRACT_ADDRESS", "").strip()
+            _privkey = os.environ.get("PRIVATE_KEY", "").strip()
+            if not _contract or not _privkey:
+                on_chain_warning = (
+                    "On-chain storage skipped — CONTRACT_ADDRESS or PRIVATE_KEY not set. "
+                    "Certificate is valid but not stored on Base Sepolia."
+                )
+            else:
+                on_chain_warning = (
+                    "On-chain transaction failed — certificate is valid but not stored on-chain. "
+                    "Check RPC connectivity and wallet balance."
+                )
+            print(f"[api/verify] WARNING: {on_chain_warning}")
+
+        yield json.dumps({
+            "stage": "attestation", "status": "done",
+            "on_chain": bool(tx_hash),
+            **({"on_chain_warning": on_chain_warning} if on_chain_warning else {}),
+        }) + "\n"
 
         # Final event: the complete certificate
         yield json.dumps({"stage": "done", "certificate": certificate}) + "\n"

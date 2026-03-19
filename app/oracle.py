@@ -574,9 +574,11 @@ def _fetch_attorney_credential(credentials: dict) -> dict:
 # Main entrypoint — medical board oracle
 # ---------------------------------------------------------------------------
 
-async def _oracle_main(credentials: dict) -> dict:
+async def _oracle_main(credentials: dict, max_retries: int = 2) -> dict:
     """
     Props L1 — runs TLS pin check then fetches the credential.
+    Retries the Chromium scrape on transient failures (timeouts, navigation errors).
+    TLS verification is NOT retried — a fingerprint mismatch is a hard rejection.
     """
     license_number = credentials.get("license_number", "")
     if not license_number:
@@ -585,6 +587,7 @@ async def _oracle_main(credentials: dict) -> dict:
     profession = credentials.get("profession", ORACLE_PROFESSION)
 
     # Props L1 — TLS fingerprint verification (section 3.1)
+    # This is checked once — mismatch is a security rejection, not a transient error
     fingerprint_ok, live_fingerprint = verify_tls_fingerprint()
     if not fingerprint_ok:
         raise ValueError(
@@ -594,10 +597,28 @@ async def _oracle_main(credentials: dict) -> dict:
         )
     print(f"[oracle] TLS fingerprint verified ({live_fingerprint[:16]}...)")
 
-    raw_credential = await _fetch_credential_async(license_number, profession)
+    # Retry the Chromium scrape — the NYSED portal can be slow/flaky
+    last_error = None
+    raw_credential = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            raw_credential = await _fetch_credential_async(license_number, profession)
+            if raw_credential:
+                break
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries:
+                wait = attempt * 3  # 3s before retry
+                print(f"[oracle] Chromium scrape failed (attempt {attempt}/{max_retries}), retrying in {wait}s: {e}")
+                await asyncio.sleep(wait)
+            else:
+                print(f"[oracle] Chromium scrape failed after {max_retries} attempts: {e}")
 
     if not raw_credential:
-        raise ValueError("Oracle returned empty credential")
+        raise ValueError(
+            f"Oracle returned empty credential after {max_retries} attempts"
+            + (f": {last_error}" if last_error else "")
+        )
 
     # Props L1/L5 — data integrity hash (section 3.1 + 2.3)
     raw_json = json.dumps(raw_credential, sort_keys=True)

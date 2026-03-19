@@ -1678,6 +1678,7 @@ async function submitVerify() {
     const decoder = new TextDecoder();
     let buffer = '';
     let finalCertificate = null;
+    let _onChainWarning = null;
 
     // Loading step IDs: 0=encryption(always done), 1=connecting, 2=oracle, 3=LLM, 4=attestation
     while (true) {
@@ -1712,6 +1713,9 @@ async function submitVerify() {
             activateLoadingStep(4);
           } else if (evt.stage === 'attestation' && evt.status === 'done') {
             doneLoadingStep(4);
+            if (evt.on_chain_warning) {
+              _onChainWarning = evt.on_chain_warning;
+            }
           } else if (evt.status === 'error') {
             hideLoadingOverlay();
             document.getElementById('submit-error').innerHTML = errorBox(evt.error || 'Pipeline error');
@@ -1729,6 +1733,7 @@ async function submitVerify() {
     if (finalCertificate) {
       currentCertId = finalCertificate.certificate_id;
       currentCertData = finalCertificate;
+      if (_onChainWarning) finalCertificate._onChainWarning = _onChainWarning;
       navigate('certificate', currentCertId);
       renderCertificate(finalCertificate);
       updateArticleWithCertData(finalCertificate);
@@ -1929,6 +1934,13 @@ function renderCertificate(data) {
         verifyDiv.innerHTML = html;
       });
     }
+  } else if (data._onChainWarning) {
+    // On-chain storage failed or was skipped — show explicit warning
+    onchainContainer.innerHTML =
+      '<div style="background:rgba(255,170,0,0.05);border:1px solid rgba(255,170,0,0.3);border-radius:10px;padding:1.25rem;margin-top:4px;">' +
+        '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⚠ On-chain storage unavailable</div>' +
+        '<div style="font-size:12px;color:var(--muted);line-height:1.6;">' + escapeHtml(data._onChainWarning) + '</div>' +
+      '</div>';
   } else {
     onchainContainer.innerHTML = '';
   }
