@@ -13,7 +13,8 @@ WHY AN LLM (NOT REGEX):
   impossible — the input arrives through the oracle, not from the user.
 
 The model name and SHA-256 hash of its manifest are captured and returned
-so the attestation layer can include them in the signed certificate.
+so the attestation layer
+ can include them in the signed certificate.
 
 Ollama runs as a sidecar in docker-compose on port 11434.
 Model is pulled at container startup via the entrypoint script.
@@ -149,6 +150,7 @@ def _ollama_generate(prompt: str, max_retries: int = 3) -> str:
         },
     }
     last_error = None
+    _model_pulled = False
     for attempt in range(1, max_retries + 1):
         try:
             resp = httpx.post(
@@ -158,6 +160,30 @@ def _ollama_generate(prompt: str, max_retries: int = 3) -> str:
             )
             resp.raise_for_status()
             return resp.json()["response"].strip()
+        except httpx.HTTPStatusError as e:
+            # Ollama returns 500 when the model isn't pulled yet.
+            # Trigger an on-demand pull and retry.
+            if e.response.status_code == 500 and not _model_pulled:
+                print(f"[extractor] Ollama 500 — model may not be pulled. Pulling '{MODEL_NAME}'...")
+                try:
+                    pull_resp = httpx.post(
+                        f"{OLLAMA_BASE_URL}/api/pull",
+                        json={"name": MODEL_NAME, "stream": False},
+                        timeout=600.0,
+                    )
+                    pull_resp.raise_for_status()
+                    _model_pulled = True
+                    print(f"[extractor] Model pulled successfully, retrying generate...")
+                    continue
+                except Exception as pull_err:
+                    print(f"[extractor] Model pull failed: {pull_err}")
+            last_error = e
+            if e.response.status_code >= 500 and attempt < max_retries:
+                wait = attempt * 2
+                print(f"[extractor] Ollama {e.response.status_code} (attempt {attempt}/{max_retries}), retrying in {wait}s")
+                import time; time.sleep(wait)
+            else:
+                raise
         except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as e:
             last_error = e
             if attempt < max_retries:
@@ -166,14 +192,6 @@ def _ollama_generate(prompt: str, max_retries: int = 3) -> str:
                 import time; time.sleep(wait)
             else:
                 print(f"[extractor] Ollama failed after {max_retries} attempts: {e}")
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code >= 500 and attempt < max_retries:
-                last_error = e
-                wait = attempt * 2
-                print(f"[extractor] Ollama {e.response.status_code} (attempt {attempt}/{max_retries}), retrying in {wait}s")
-                import time; time.sleep(wait)
-            else:
-                raise
     raise last_error or RuntimeError("Ollama unreachable after retries")
 
 
@@ -254,18 +272,35 @@ def get_model_info() -> dict:
 
 
 def wait_for_ollama(max_wait_seconds: int = 120) -> None:
-    """Blocks until Ollama is ready. Called at app startup."""
+    """Blocks until Ollama is ready AND the model is pulled. Called at app startup."""
     deadline = time.time() + max_wait_seconds
     while time.time() < deadline:
         try:
             resp = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5.0)
             if resp.status_code == 200:
                 print(f"[extractor] Ollama ready at {OLLAMA_BASE_URL}")
-                return
+                break
         except Exception:
             pass
         time.sleep(3)
-    raise RuntimeError(f"Ollama did not become ready within {max_wait_seconds}s")
+    else:
+        raise RuntimeError(f"Ollama did not become ready within {max_wait_seconds}s")
+
+    # Ensure the model is actually pulled — Ollama 500s on /api/generate
+    # if the model isn't available. Pull is idempotent (no-op if already present).
+    print(f"[extractor] Ensuring model '{MODEL_NAME}' is pulled...")
+    try:
+        pull_resp = httpx.post(
+            f"{OLLAMA_BASE_URL}/api/pull",
+            json={"name": MODEL_NAME, "stream": False},
+            timeout=600.0,  # model pull can take minutes on first boot
+        )
+        if pull_resp.status_code == 200:
+            print(f"[extractor] Model '{MODEL_NAME}' ready")
+        else:
+            print(f"[extractor] WARNING: model pull returned {pull_resp.status_code}")
+    except Exception as e:
+        print(f"[extractor] WARNING: model pull failed: {e} — will retry on first request")
 
 
 # ---------------------------------------------------------------------------
