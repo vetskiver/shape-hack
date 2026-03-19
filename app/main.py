@@ -604,8 +604,9 @@ async def verify_certificate_endpoint(certificate_id: str):
         "signing_key_public": cert.get("signing_key_public"),
         "payload_hash": cert.get("payload_hash"),
         "tdx_quote_present": tdx_verification["present"],
-        # Props L2 — TDX quote verification result
+        # Props L2 — TDX quote verification result (structural + SDK + Intel DCAP)
         "tdx_verification": tdx_verification,
+        "tdx_intel_verified": tdx_verification.get("intel_verified"),
         # On-chain permanence — returned so verifier page can show tx link
         "on_chain_tx": cert.get("on_chain_tx"),
         "basescan_url": cert.get("basescan_url"),

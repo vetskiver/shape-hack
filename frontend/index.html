@@ -1883,10 +1883,23 @@ function renderCertificate(data) {
     (data.enclave || 'unknown') + ' / ' + (data.platform || 'unknown') +
     (data.in_real_enclave ? ' (real hardware)' : ' (simulated)');
 
-  // TDX quote indicator
+  // TDX quote indicator — show richer info on Screen 2
   const tdxInfo = document.getElementById('cert-tdx-info');
   if (tdxInfo && data.tdx_quote) {
     tdxInfo.style.display = 'block';
+    const quoteLen = data.tdx_quote.replace(/^0x/i, '').length / 2;
+    tdxInfo.innerHTML =
+      '<div style="background:rgba(68,136,255,0.05);border:1px solid rgba(68,136,255,0.2);border-radius:8px;padding:10px 14px;">' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">' +
+          '<span style="font-size:10px;font-family:var(--mono);color:var(--blue);font-weight:600;">TDX hardware quote embedded</span>' +
+          '<span style="font-size:10px;color:var(--faint);">·</span>' +
+          '<span style="font-size:10px;font-family:var(--mono);color:var(--faint);">' + Math.round(quoteLen) + ' bytes</span>' +
+        '</div>' +
+        '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);line-height:1.6;">' +
+          'report_data bound to payload_hash · Verifiable via Intel Trust Authority DCAP API · ' +
+          'Click "Open verify page" above for full verification results' +
+        '</div>' +
+      '</div>';
   }
 
   // On-chain block — View 2 centrepiece
@@ -1895,15 +1908,27 @@ function renderCertificate(data) {
     const tx = escapeHtml(data.on_chain_tx);
     const short = tx.slice(0, 10) + '...' + tx.slice(-8);
     const explorerUrl = data.basescan_url || ('https://sepolia.basescan.org/tx/' + tx);
+    const certPayloadHash = data.payload_hash || '';
+    const certIdForChain = data.certificate_id || '';
     onchainContainer.innerHTML =
       '<div style="background:var(--green-dim);border:1px solid var(--green-mid);border-radius:10px;padding:1.25rem;margin-top:4px;">' +
         '<div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⛓ On-chain certificate — Base Sepolia L2</div>' +
         '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">This certificate exists permanently on Base (Coinbase L2)</div>' +
         '<div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6;">Even if this server disappears, the certificate hash lives on-chain forever. Anyone can verify it in 2030.</div>' +
+        '<div id="cert-onchain-verify" style="margin-bottom:12px;"></div>' +
         '<a href="' + escapeHtml(explorerUrl) + '" target="_blank" style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--green);font-family:var(--mono);background:rgba(0,200,150,0.1);border:1px solid var(--green-mid);border-radius:6px;padding:9px 16px;text-decoration:none;font-weight:600;">' +
           '⛓ Transaction: ' + short + '&nbsp;&nbsp;View on Basescan →' +
         '</a>' +
       '</div>';
+
+    // Run browser-native on-chain verification on Screen 2 too
+    if (certIdForChain && certPayloadHash) {
+      const verifyDiv = document.getElementById('cert-onchain-verify');
+      verifyDiv.innerHTML = '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);">Verifying on-chain hash from browser...</div>';
+      verifyOnChainFromBrowser(certIdForChain, certPayloadHash, data.on_chain_tx).then(html => {
+        verifyDiv.innerHTML = html;
+      });
+    }
   } else {
     onchainContainer.innerHTML = '';
   }
@@ -2094,14 +2119,113 @@ function renderVerifier(data) {
   const certIdStr = data.certificate_id || '';
 
   if (certIdStr && payloadHash) {
+    // Show step-by-step progress while browser verifies on-chain
     onchainContainer.innerHTML =
       '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
-        '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⛓ Browser-native on-chain verification — reading from Base Sepolia...</div>' +
+        '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">⛓ Browser-native on-chain verification — zero server trust</div>' +
+        '<div id="onchain-steps" style="font-size:11px;font-family:var(--mono);color:var(--faint);line-height:2;">' +
+          '<div id="oc-step-1" style="color:var(--amber);">① Computing keccak256(certificate_id)...</div>' +
+          '<div id="oc-step-2" style="color:var(--faint);">② ABI-encoding verify(bytes32) call</div>' +
+          '<div id="oc-step-3" style="color:var(--faint);">③ eth_call → sepolia.base.org (browser → chain)</div>' +
+          '<div id="oc-step-4" style="color:var(--faint);">④ Comparing stored hash to payload_hash</div>' +
+        '</div>' +
         '<div class="spinner-sm" style="margin:8px auto;display:block;"></div>' +
       '</div>';
-    verifyOnChainFromBrowser(certIdStr, payloadHash, onchain).then(html => {
-      onchainContainer.innerHTML = html;
-    });
+
+    // Run verification with animated step updates
+    (async () => {
+      try {
+        // Step 1: Keccak hash
+        const certIdBytes = new TextEncoder().encode(certIdStr);
+        const certKey = browserKeccak256(certIdBytes);
+        const certKeyHex = bytesToHex(certKey);
+        const s1 = document.getElementById('oc-step-1');
+        if (s1) { s1.style.color = 'var(--green)'; s1.textContent = '✓ keccak256(cert_id) = ' + certKeyHex.slice(0, 18) + '...'; }
+
+        // Step 2: ABI encode
+        const selector = browserKeccak256(new TextEncoder().encode('verify(bytes32)')).slice(0, 4);
+        const calldata = new Uint8Array(4 + 32);
+        calldata.set(selector, 0);
+        calldata.set(certKey, 4);
+        const s2 = document.getElementById('oc-step-2');
+        if (s2) { s2.style.color = 'var(--green)'; s2.textContent = '✓ ABI calldata: ' + bytesToHex(calldata).slice(0, 22) + '... (' + calldata.length + ' bytes)'; }
+
+        // Step 3: eth_call
+        const s3 = document.getElementById('oc-step-3');
+        if (s3) { s3.style.color = 'var(--amber)'; s3.textContent = '③ eth_call → sepolia.base.org ...'; }
+        const rpcRes = await fetch(ONCHAIN_RPC, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', method: 'eth_call', id: 1,
+            params: [{ to: ONCHAIN_CONTRACT, data: bytesToHex(calldata) }, 'latest']
+          })
+        });
+        const rpcBody = await rpcRes.json();
+        if (rpcBody.error) throw new Error(rpcBody.error.message || JSON.stringify(rpcBody.error));
+        const storedHex = rpcBody.result;
+        const storedClean = storedHex.replace(/^0x/, '').replace(/^0+/, '') || '0';
+        const isStored = storedClean !== '0' && storedClean.length > 1;
+        if (s3) { s3.style.color = 'var(--green)'; s3.textContent = '✓ RPC response received — stored hash: 0x' + storedHex.replace(/^0x/, '').slice(0, 16) + '...'; }
+
+        // Step 4: Compare
+        const expectedB32 = payloadHash.replace(/^0x/i, '').padEnd(64, '0').slice(0, 64);
+        const storedB32 = storedHex.replace(/^0x/, '').toLowerCase();
+        const matches = isStored && storedB32 === expectedB32.toLowerCase();
+        const s4 = document.getElementById('oc-step-4');
+
+        if (isStored && matches) {
+          if (s4) { s4.style.color = 'var(--green)'; s4.textContent = '✓ Hashes match — certificate is on-chain and authentic'; }
+        } else if (isStored) {
+          if (s4) { s4.style.color = 'var(--red)'; s4.textContent = '✗ Hash mismatch — stored hash does not match payload_hash'; }
+        } else {
+          if (s4) { s4.style.color = 'var(--amber)'; s4.textContent = '⚠ Certificate not yet found on-chain (tx may be pending)'; }
+        }
+
+        // Replace spinner with final result
+        const explorer = 'https://sepolia.basescan.org';
+        const txLink = onchain
+          ? '<a href="' + escapeHtml(explorer + '/tx/' + onchain) + '" target="_blank" style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--green);font-family:var(--mono);background:rgba(0,200,150,0.1);border:1px solid var(--green-mid);border-radius:6px;padding:9px 16px;text-decoration:none;font-weight:600;margin-top:10px;">⛓ View transaction on Basescan →</a>'
+          : '';
+
+        // Update container border color based on result
+        const container = onchainContainer.querySelector('div');
+        if (container) {
+          if (isStored && matches) {
+            container.style.background = 'var(--green-dim)';
+            container.style.borderColor = 'var(--green-mid)';
+            const label = container.querySelector('div');
+            if (label) label.style.color = 'var(--green)';
+          } else if (isStored) {
+            container.style.background = 'var(--red-dim)';
+            container.style.borderColor = '#660000';
+          }
+        }
+
+        // Remove spinner, add details
+        const spinner = onchainContainer.querySelector('.spinner-sm');
+        if (spinner) spinner.remove();
+
+        // Add hash comparison details and tx link
+        const detailDiv = document.createElement('div');
+        detailDiv.innerHTML =
+          '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:10px;line-height:1.8;border-top:1px solid var(--border2);padding-top:10px;">' +
+            'contract: ' + escapeHtml(ONCHAIN_CONTRACT) + '<br>' +
+            'chain: Base Sepolia (84532)<br>' +
+            'stored:&nbsp;&nbsp; 0x' + escapeHtml(storedB32) + '<br>' +
+            'expected: 0x' + escapeHtml(expectedB32) + '<br>' +
+            'match: ' + (matches ? '<span style="color:var(--green);font-weight:600;">✓ hashes match</span>' : (isStored ? '<span style="color:var(--red);font-weight:600;">✗ mismatch</span>' : '<span style="color:var(--amber);">pending</span>')) +
+          '</div>' + txLink;
+        onchainContainer.querySelector('div').appendChild(detailDiv);
+
+      } catch (err) {
+        onchainContainer.innerHTML =
+          '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
+            '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⛓ On-chain verification</div>' +
+            '<div style="font-size:12px;color:var(--muted);">Browser-native verification failed: ' + escapeHtml(err.message) + '</div>' +
+          '</div>';
+      }
+    })();
   } else if (onchain) {
     const tx = escapeHtml(onchain);
     const bsUrl = data.basescan_url || ('https://sepolia.basescan.org/tx/' + tx);
@@ -2114,11 +2238,76 @@ function renderVerifier(data) {
     onchainContainer.innerHTML = '';
   }
 
-  // TDX quote verification guidance
-  const tdxPresent = data.tdx_quote_present;
+  // TDX quote verification — show real results from backend, not just static guide
   const tdxContainer = document.getElementById('verifier-tdx-verify');
-  if (tdxContainer && tdxPresent) {
+  if (tdxContainer && data.tdx_verification) {
+    const tdx = data.tdx_verification;
     tdxContainer.style.display = 'block';
+
+    if (tdx.present) {
+      const reportMatch = tdx.report_data_matches;
+      const intelVerified = tdx.intel_verified;
+      const method = tdx.verification_method || 'structural';
+
+      // Determine overall status color
+      const statusColor = reportMatch ? 'var(--green)' : 'var(--red)';
+      const statusIcon = reportMatch ? '✓' : '✗';
+
+      let html = '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">';
+      html += '<div style="font-size:10px;font-family:var(--mono);color:var(--blue);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Intel TDX Hardware Attestation — Live Verification</div>';
+
+      // Step 1: Structural verification
+      html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;">';
+      html += '<span style="color:' + (reportMatch ? 'var(--green)' : 'var(--red)') + ';font-weight:700;font-size:14px;line-height:1.4;">' + statusIcon + '</span>';
+      html += '<div>';
+      html += '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Structural Verification</div>';
+      html += '<div style="font-size:11px;color:var(--muted);line-height:1.5;">report_data at offset 568 ' + (reportMatch ? 'matches' : 'does NOT match') + ' payload_hash</div>';
+      if (tdx.report_data) {
+        html += '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:4px;">report_data: 0x' + escapeHtml(tdx.report_data.slice(0, 32)) + '...</div>';
+        html += '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);">payload_hash: ' + escapeHtml(tdx.expected_payload_hash || '') + '</div>';
+      }
+      html += '</div></div>';
+
+      // Step 2: Intel DCAP remote verification
+      html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;padding-top:10px;border-top:1px solid var(--border2);">';
+      if (intelVerified === true) {
+        html += '<span style="color:var(--green);font-weight:700;font-size:14px;line-height:1.4;">✓</span>';
+        html += '<div>';
+        html += '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Intel Trust Authority DCAP — Verified</div>';
+        html += '<div style="font-size:11px;color:var(--green);line-height:1.5;">Intel\'s own infrastructure confirmed this TDX quote is authentic hardware attestation.</div>';
+      } else if (intelVerified === false) {
+        html += '<span style="color:var(--amber);font-weight:700;font-size:14px;line-height:1.4;">⚠</span>';
+        html += '<div>';
+        html += '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Intel Trust Authority DCAP</div>';
+        html += '<div style="font-size:11px;color:var(--muted);line-height:1.5;">' + escapeHtml(tdx.intel_details || 'Quote may be from simulated enclave or API requires authentication.') + '</div>';
+      } else {
+        html += '<span style="color:var(--faint);font-weight:700;font-size:14px;line-height:1.4;">○</span>';
+        html += '<div>';
+        html += '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px;">Intel Trust Authority DCAP</div>';
+        html += '<div style="font-size:11px;color:var(--muted);line-height:1.5;">' + escapeHtml(tdx.intel_details || 'Remote DCAP verification not attempted.') + '</div>';
+      }
+      html += '</div></div>';
+
+      // Verification method badge
+      html += '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">';
+      html += '<span style="font-size:10px;font-family:var(--mono);background:rgba(68,136,255,0.1);border:1px solid rgba(68,136,255,0.3);border-radius:5px;padding:4px 10px;color:var(--blue);">method: ' + escapeHtml(method) + '</span>';
+      if (tdx.sdk_verified) {
+        html += '<span style="font-size:10px;font-family:var(--mono);background:rgba(0,200,150,0.1);border:1px solid var(--green-mid);border-radius:5px;padding:4px 10px;color:var(--green);">dstack-sdk: verified</span>';
+      }
+      html += '<a href="https://docs.trustauthority.intel.com/main/articles/integrate-overview.html" target="_blank" style="font-size:10px;color:var(--blue);font-family:var(--mono);font-weight:600;background:rgba(68,136,255,0.1);border:1px solid rgba(68,136,255,0.3);border-radius:5px;padding:4px 10px;text-decoration:none;">Intel docs →</a>';
+      html += '</div>';
+      html += '</div>';
+
+      tdxContainer.innerHTML = html;
+    } else {
+      // No TDX quote — simulated enclave
+      tdxContainer.innerHTML =
+        '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
+          '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Intel TDX Hardware Attestation</div>' +
+          '<div style="font-size:12px;color:var(--muted);line-height:1.5;">No TDX quote present — this certificate was issued from a simulated enclave (local dev). In production on Phala Cloud, a real Intel TDX hardware quote is embedded and verified.</div>' +
+        '</div>';
+      tdxContainer.style.display = 'block';
+    }
   }
 }
 

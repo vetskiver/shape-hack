@@ -169,7 +169,8 @@ def verify_onchain(cert: dict) -> tuple[bool, str]:
 def check_tdx_quote(cert: dict) -> tuple[bool, str]:
     """
     Verify the TDX attestation quote: parse the quote structure, extract
-    report_data, and check it matches the certificate's payload_hash.
+    report_data, check it matches the certificate's payload_hash, and
+    optionally verify via Intel Trust Authority DCAP API.
     """
     quote_hex = cert.get("tdx_quote")
     if not quote_hex:
@@ -190,18 +191,44 @@ def check_tdx_quote(cert: dict) -> tuple[bool, str]:
         report_data = quote_bytes[REPORT_DATA_OFFSET:REPORT_DATA_OFFSET + REPORT_DATA_LEN]
         report_hash = report_data[:32].hex()
 
-        if report_hash == payload_hash:
-            return True, (
-                f"TDX quote VERIFIED — report_data matches payload_hash ({report_hash[:16]}...). "
-                f"Quote is {len(quote_bytes)} bytes. "
-                f"For full Intel DCAP verification: "
-                f"https://api.trustauthority.intel.com/appraisal/v2/attest"
-            )
-        else:
+        structural_ok = report_hash == payload_hash
+        if not structural_ok:
             return False, (
                 f"TDX quote report_data MISMATCH — "
                 f"quote: {report_hash[:16]}... vs payload_hash: {payload_hash[:16]}..."
             )
+
+        msg = (
+            f"TDX quote structural check PASSED — report_data matches payload_hash "
+            f"({report_hash[:16]}...). Quote is {len(quote_bytes)} bytes."
+        )
+
+        # Level 2: Remote Intel DCAP verification via Intel Trust Authority
+        try:
+            import base64
+            quote_b64 = base64.b64encode(quote_bytes).decode()
+            r = httpx.post(
+                "https://api.trustauthority.intel.com/appraisal/v2/attest",
+                json={"quote": quote_b64},
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                token = r.json().get("token", "")
+                if token:
+                    msg += f" Intel DCAP: VERIFIED by Intel Trust Authority (JWT {len(token)} chars)."
+                else:
+                    msg += " Intel DCAP: 200 but no token returned."
+            else:
+                msg += (
+                    f" Intel DCAP: HTTP {r.status_code} — "
+                    f"quote may be from simulated enclave or API requires auth."
+                )
+        except Exception as e:
+            msg += f" Intel DCAP: unavailable ({e})."
+
+        return True, msg
+
     except Exception as e:
         return False, f"TDX quote parsing failed: {e}"
 

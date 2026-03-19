@@ -282,6 +282,61 @@ def verify_tdx_quote(certificate: dict) -> dict:
         # SDK verification not available — structural check is still valid
         pass
 
+    # --- Level 3: Remote Intel DCAP verification via Intel Trust Authority ---
+    # https://docs.trustauthority.intel.com/main/articles/integrate-overview.html
+    # Sends the raw TDX quote to Intel's appraisal API for full DCAP verification.
+    # Intel validates: hardware authenticity, enclave measurement, quote signature.
+    # This is the gold standard — Intel's own infrastructure vouches for the quote.
+    result["intel_verified"] = None
+    result["intel_details"] = None
+    try:
+        import httpx
+        quote_b64 = __import__("base64").b64encode(quote_bytes).decode()
+        intel_resp = httpx.post(
+            "https://api.trustauthority.intel.com/appraisal/v2/attest",
+            json={"quote": quote_b64},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+        if intel_resp.status_code == 200:
+            intel_body = intel_resp.json()
+            # Intel returns a JWT token on success — its presence means DCAP passed
+            token = intel_body.get("token", "")
+            if token:
+                result["intel_verified"] = True
+                result["verification_method"] = "intel-dcap"
+                result["intel_details"] = (
+                    f"Intel Trust Authority DCAP verification PASSED. "
+                    f"JWT token received ({len(token)} chars). "
+                    f"This quote was validated by Intel's own infrastructure."
+                )
+                result["details"] += " | Intel DCAP: quote verified by Intel Trust Authority"
+            else:
+                result["intel_verified"] = False
+                result["intel_details"] = (
+                    f"Intel Trust Authority returned 200 but no token. "
+                    f"Response: {str(intel_body)[:200]}"
+                )
+        else:
+            # Non-200 — quote may be invalid, or API may require an API key
+            body_text = intel_resp.text[:300]
+            result["intel_verified"] = False
+            result["intel_details"] = (
+                f"Intel Trust Authority returned HTTP {intel_resp.status_code}. "
+                f"This may indicate the quote is from a simulated enclave "
+                f"(not real TDX hardware), or the API requires authentication. "
+                f"Response: {body_text}"
+            )
+    except Exception as e:
+        # Network error or httpx not available — not a failure, just unavailable
+        result["intel_details"] = (
+            f"Intel DCAP remote verification unavailable: {e}. "
+            f"Structural verification result above is still valid."
+        )
+
     return result
 
 
