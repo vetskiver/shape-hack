@@ -1197,6 +1197,26 @@
     <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
   </div>
 
+  <!-- Article mode toggle — example story vs custom article -->
+  <div style="display:flex;gap:8px;margin-bottom:1rem;">
+    <button class="btn-secondary" id="article-mode-example" onclick="setArticleMode('example')" style="font-size:11px;border-color:var(--green);color:var(--green);">Example story</button>
+    <button class="btn-secondary" id="article-mode-custom" onclick="setArticleMode('custom')" style="font-size:11px;">Write your own</button>
+  </div>
+
+  <!-- Custom article input (hidden by default) -->
+  <div id="article-custom-input" style="display:none;margin-bottom:1rem;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Write your article — the Props badge attaches automatically</div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <input class="form-input" id="custom-article-title" placeholder="Article headline..." style="font-size:16px;font-weight:600;">
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <textarea class="form-input" id="custom-article-body" placeholder="Write your article here. Your verified credential badge will be attached automatically..." rows="6" style="resize:vertical;line-height:1.8;"></textarea>
+      </div>
+      <button class="btn-secondary" onclick="applyCustomArticle()" style="font-size:11px;">Preview with Props badge →</button>
+    </div>
+  </div>
+
   <div class="article-card">
     <div class="article-body">
       <div class="article-category" id="article-category">Medical · Public health</div>
@@ -2078,6 +2098,55 @@ function copyVerifyLink() {
 
 function openVerifyTab() {
   window.open(verifyUrl(), '_blank');
+}
+
+// Article mode toggle — example story vs custom article
+function setArticleMode(mode) {
+  const exBtn = document.getElementById('article-mode-example');
+  const custBtn = document.getElementById('article-mode-custom');
+  const custInput = document.getElementById('article-custom-input');
+
+  if (mode === 'custom') {
+    custInput.style.display = 'block';
+    custBtn.style.borderColor = 'var(--green)';
+    custBtn.style.color = 'var(--green)';
+    exBtn.style.borderColor = 'var(--border2)';
+    exBtn.style.color = 'var(--text)';
+  } else {
+    custInput.style.display = 'none';
+    exBtn.style.borderColor = 'var(--green)';
+    exBtn.style.color = 'var(--green)';
+    custBtn.style.borderColor = 'var(--border2)';
+    custBtn.style.color = 'var(--text)';
+    // Restore example content
+    if (currentCertData) updateArticleWithCertData(currentCertData);
+  }
+}
+
+function applyCustomArticle() {
+  const title = document.getElementById('custom-article-title').value.trim();
+  const body = document.getElementById('custom-article-body').value.trim();
+  if (!title && !body) return;
+
+  const elTitle = document.getElementById('article-title');
+  const elBody1 = document.getElementById('article-body-1');
+  const elBody2 = document.getElementById('article-body-2');
+  const elCat = document.getElementById('article-category');
+  const elAttr = document.getElementById('article-attribution');
+
+  if (elTitle && title) elTitle.textContent = title;
+  if (elCat) elCat.textContent = 'Anonymous publication';
+  if (elBody1 && body) {
+    // Split body at first double newline for two paragraphs, or use full text
+    const parts = body.split(/\n\n/);
+    elBody1.textContent = parts[0];
+    if (elBody2) elBody2.textContent = parts.slice(1).join('\n\n') || '';
+  }
+  if (elAttr) {
+    const credential = currentCertData?.credential || {};
+    const facts = Object.values(credential).slice(0, 2).join(', ');
+    elAttr.textContent = '\u2014 anonymous \u00b7 verified expert' + (facts ? ' \u00b7 ' + facts : '');
+  }
 }
 
 function copyEmbedCode() {

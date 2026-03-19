@@ -107,28 +107,75 @@ def _get_client_ip(request: Request) -> str:
 # Credentials are RSA-OAEP encrypted before leaving the user's device.
 # ---------------------------------------------------------------------------
 
+class _HkdfDrbg:
+    """
+    Deterministic random bit generator seeded via HKDF-SHA256.
+
+    Uses HKDF (RFC 5869) to expand a seed into an arbitrary-length
+    pseudorandom stream. Each call to read(n) derives the next n bytes
+    by incrementing a counter and running HKDF-Expand.
+
+    This replaces the previous random.Random(seed) approach — HKDF is a
+    proper cryptographic KDF, whereas random.Random uses Mersenne Twister
+    which is not designed for key derivation.
+    """
+
+    def __init__(self, seed: bytes):
+        self._seed = seed
+        self._counter = 0
+
+    def read(self, n: int) -> bytes:
+        """Return n pseudorandom bytes derived from seed + counter."""
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        out = b""
+        while len(out) < n:
+            hkdf = HKDF(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=self._seed,
+                info=b"props-rsa-keygen-" + self._counter.to_bytes(4, "big"),
+            )
+            out += hkdf.derive(self._seed)
+            self._counter += 1
+        return out[:n]
+
+    def getrandbits(self, k: int) -> int:
+        """Return a k-bit random integer."""
+        nbytes = (k + 7) // 8
+        return int.from_bytes(self.read(nbytes), "big") >> (nbytes * 8 - k)
+
+    def randrange(self, start: int, stop: int) -> int:
+        """Return a random integer in [start, stop)."""
+        width = stop - start
+        k = width.bit_length()
+        # Rejection sampling to avoid modulo bias
+        while True:
+            r = self.getrandbits(k)
+            if r < width:
+                return start + r
+
+
 def _generate_deterministic_rsa_key(seed_bytes: bytes, key_size: int = 2048):
     """
     Props L2 — Generate a deterministic RSA key from an enclave-derived seed.
 
-    Uses the seed from DstackClient.get_key() to deterministically find two
-    primes p and q via a seeded CSPRNG, then constructs the RSA private key.
-    Same seed = same key. The seed is bound to the enclave measurement
-    (MRTD/RTMR), so modified code produces a different key.
+    Uses HKDF-SHA256 (RFC 5869) as a deterministic CSPRNG to find two primes
+    p and q, then constructs the RSA private key. Same seed = same key.
+    The seed is bound to the enclave measurement (MRTD/RTMR), so modified
+    code produces a different key.
     """
     import math
-    import random as _rng_mod
     from cryptography.hazmat.primitives.asymmetric.rsa import (
         rsa_crt_dmp1, rsa_crt_dmq1, rsa_crt_iqmp,
         RSAPrivateNumbers, RSAPublicNumbers,
     )
 
-    rng = _rng_mod.Random(seed_bytes)
+    rng = _HkdfDrbg(seed_bytes)
     e = 65537
     half_bits = key_size // 2
 
     def _is_probable_prime(n, k=20):
-        """Miller-Rabin primality test with seeded witnesses."""
+        """Miller-Rabin primality test with HKDF-derived witnesses."""
         if n < 2:
             return False
         if n < 4:
