@@ -801,6 +801,8 @@ async def verify_certificate_endpoint(certificate_id: str):
         # Props L2 — TDX quote verification result (structural + SDK + Intel DCAP)
         "tdx_verification": tdx_verification,
         "tdx_intel_verified": tdx_verification.get("intel_verified"),
+        # Props L2 — enclave measurements (MRTD, RTMR0-3) for auditors
+        "tdx_measurements": tdx_verification.get("measurements"),
         # On-chain permanence — returned so verifier page can show tx link
         "on_chain_tx": cert.get("on_chain_tx"),
         "basescan_url": cert.get("basescan_url"),

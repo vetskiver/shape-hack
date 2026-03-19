@@ -177,17 +177,82 @@ def generate_certificate(
 # TDX quote verification
 # ---------------------------------------------------------------------------
 
-# Intel TDX Quote v4 header layout (from Intel TDX DCAP specification):
+# Intel TDX Quote v4 layout (from Intel TDX DCAP specification):
+#
+# HEADER (48 bytes):
 #   bytes 0-1:   version (uint16 LE, expect 4)
 #   bytes 2-3:   attestation key type (uint16 LE, 2 = ECDSA-256 with P-256)
 #   bytes 4-7:   TEE type (uint32 LE, 0x81 = TDX)
 #   bytes 16-47: reserved / QE vendor ID
-#   bytes 48-67: user data (20 bytes)
-# Quote body (offset 48 in header+body, but structure varies):
-#   The report_data field is 64 bytes at a known offset within the TD report.
-#   For TDX DCAP v4 quotes, report_data is at offset 568 from quote start.
+#
+# TD QUOTE BODY (584 bytes, starting at offset 48):
+#   offset 48:   TEE_TCB_SVN     (16 bytes)
+#   offset 64:   MRSEAM          (48 bytes) — hash of the TDX module
+#   offset 112:  MRSIGNERSEAM    (48 bytes) — signer of the TDX module
+#   offset 160:  SEAMATTRIBUTES  (8 bytes)
+#   offset 168:  TDATTRIBUTES    (8 bytes)
+#   offset 176:  XFAM            (8 bytes)
+#   offset 184:  MRTD            (48 bytes) — hash of the TD (enclave measurement)
+#   offset 232:  MRCONFIGID      (48 bytes)
+#   offset 280:  MROWNER         (48 bytes)
+#   offset 328:  MROWNERCONFIG   (48 bytes)
+#   offset 376:  RTMR0           (48 bytes) — runtime measurement register 0
+#   offset 424:  RTMR1           (48 bytes) — runtime measurement register 1
+#   offset 472:  RTMR2           (48 bytes) — runtime measurement register 2
+#   offset 520:  RTMR3           (48 bytes) — runtime measurement register 3
+#   offset 568:  REPORTDATA      (64 bytes) — user-supplied data (our payload hash)
+#
+_TDX_HEADER_SIZE = 48
+_TDX_MRTD_OFFSET = 184
+_TDX_MRTD_LEN = 48
+_TDX_RTMR0_OFFSET = 376
+_TDX_RTMR_LEN = 48  # each RTMR is 48 bytes
 _TDX_REPORT_DATA_OFFSET = 568
 _TDX_REPORT_DATA_LEN = 64
+
+
+def parse_tdx_measurements(quote_hex: str) -> dict | None:
+    """
+    Props L2 — extract enclave identity measurements from a TDX quote.
+
+    Parses the raw TDX quote bytes and returns the key measurement registers
+    that uniquely identify the enclave build:
+      - MRTD:  hash of the TD initial contents (the enclave measurement)
+      - RTMR0: firmware/BIOS measurement
+      - RTMR1: OS/kernel measurement
+      - RTMR2: application measurement (Docker image / code)
+      - RTMR3: runtime measurement (attestation data)
+
+    Auditors use these to verify: "is this the exact enclave build I expect?"
+    Same code → same MRTD. Different code → different MRTD.
+    """
+    try:
+        quote_bytes = bytes.fromhex(quote_hex.replace("0x", ""))
+        min_len = _TDX_REPORT_DATA_OFFSET + _TDX_REPORT_DATA_LEN
+        if len(quote_bytes) < min_len:
+            return None
+
+        def _extract(offset, length):
+            return quote_bytes[offset:offset + length].hex()
+
+        # Parse header
+        version = int.from_bytes(quote_bytes[0:2], "little")
+        ak_type = int.from_bytes(quote_bytes[2:4], "little")
+        tee_type = int.from_bytes(quote_bytes[4:8], "little")
+
+        return {
+            "quote_version": version,
+            "attestation_key_type": ak_type,
+            "tee_type": hex(tee_type),
+            "mrtd": _extract(_TDX_MRTD_OFFSET, _TDX_MRTD_LEN),
+            "rtmr0": _extract(_TDX_RTMR0_OFFSET, _TDX_RTMR_LEN),
+            "rtmr1": _extract(_TDX_RTMR0_OFFSET + _TDX_RTMR_LEN, _TDX_RTMR_LEN),
+            "rtmr2": _extract(_TDX_RTMR0_OFFSET + 2 * _TDX_RTMR_LEN, _TDX_RTMR_LEN),
+            "rtmr3": _extract(_TDX_RTMR0_OFFSET + 3 * _TDX_RTMR_LEN, _TDX_RTMR_LEN),
+            "report_data": _extract(_TDX_REPORT_DATA_OFFSET, _TDX_REPORT_DATA_LEN),
+        }
+    except Exception:
+        return None
 
 
 def verify_tdx_quote(certificate: dict) -> dict:
@@ -208,6 +273,7 @@ def verify_tdx_quote(certificate: dict) -> dict:
           "sdk_verified": bool | None,
           "verification_method": str,
           "details": str,
+          "measurements": dict | None,  # MRTD, RTMR0-3
         }
     """
     quote_hex = certificate.get("tdx_quote")
@@ -221,6 +287,9 @@ def verify_tdx_quote(certificate: dict) -> dict:
             "details": "No TDX quote in certificate (simulated enclave)",
         }
 
+    # Parse enclave measurements (MRTD, RTMR0-3) from quote
+    measurements = parse_tdx_measurements(quote_hex)
+
     result = {
         "present": True,
         "report_data_matches": None,
@@ -229,6 +298,7 @@ def verify_tdx_quote(certificate: dict) -> dict:
         "sdk_verified": None,
         "verification_method": "structural",
         "details": "",
+        "measurements": measurements,
     }
 
     # --- Level 1: Structural verification ---

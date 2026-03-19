@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 # These imports work without Ollama or dstack running
 from redaction import apply_redaction_filter, get_all_disclosable_fields
-from attestation import generate_certificate, verify_certificate, verify_tdx_quote
+from attestation import generate_certificate, verify_certificate, verify_tdx_quote, parse_tdx_measurements
 
 
 # ---------------------------------------------------------------------------
@@ -433,3 +433,228 @@ class TestInputValidation:
         invalid_fields = ["'; DROP TABLE", "<script>", "../../../etc/passwd", "field name", "123field"]
         for field in invalid_fields:
             assert not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field), f"{field} should be invalid"
+
+
+# =============================================================================
+# TDX Measurement Parsing Tests (Props L2)
+# =============================================================================
+
+class TestTDXMeasurementParsing:
+    """Tests for MRTD/RTMR extraction from TDX quotes."""
+
+    def test_parse_measurements_from_synthetic_quote(self):
+        """Synthetic TDX quote with known MRTD and RTMRs."""
+        # Build a synthetic quote with distinct byte patterns at each measurement offset
+        quote_bytes = bytearray(632)  # minimum size for all fields
+
+        # Header: version=4, ak_type=2, tee_type=0x81
+        quote_bytes[0:2] = (4).to_bytes(2, "little")
+        quote_bytes[2:4] = (2).to_bytes(2, "little")
+        quote_bytes[4:8] = (0x81).to_bytes(4, "little")
+
+        # MRTD at offset 184 (48 bytes) — fill with 0xAA
+        quote_bytes[184:232] = b"\xaa" * 48
+
+        # RTMR0 at offset 376 (48 bytes) — fill with 0xBB
+        quote_bytes[376:424] = b"\xbb" * 48
+
+        # RTMR1 at offset 424 (48 bytes) — fill with 0xCC
+        quote_bytes[424:472] = b"\xcc" * 48
+
+        # RTMR2 at offset 472 (48 bytes) — fill with 0xDD
+        quote_bytes[472:520] = b"\xdd" * 48
+
+        # RTMR3 at offset 520 (48 bytes) — fill with 0xEE
+        quote_bytes[520:568] = b"\xee" * 48
+
+        # REPORTDATA at offset 568 (64 bytes) — fill with 0xFF
+        quote_bytes[568:632] = b"\xff" * 64
+
+        result = parse_tdx_measurements(bytes(quote_bytes).hex())
+
+        assert result is not None
+        assert result["quote_version"] == 4
+        assert result["attestation_key_type"] == 2
+        assert result["tee_type"] == "0x81"
+        assert result["mrtd"] == "aa" * 48
+        assert result["rtmr0"] == "bb" * 48
+        assert result["rtmr1"] == "cc" * 48
+        assert result["rtmr2"] == "dd" * 48
+        assert result["rtmr3"] == "ee" * 48
+        assert result["report_data"] == "ff" * 64
+
+    def test_parse_measurements_too_short(self):
+        """Quote too short for measurement extraction."""
+        result = parse_tdx_measurements("aabbccdd")
+        assert result is None
+
+    def test_parse_measurements_empty(self):
+        """Empty quote hex returns None."""
+        result = parse_tdx_measurements("")
+        assert result is None
+
+    def test_verify_tdx_quote_includes_measurements(self):
+        """verify_tdx_quote result should include measurements when quote is long enough."""
+        payload_hash = hashlib.sha256(b"test-payload").hexdigest()
+        payload_hash_bytes = bytes.fromhex(payload_hash)
+
+        # Build synthetic quote with known MRTD
+        quote_bytes = bytearray(632)
+        quote_bytes[184:232] = b"\xab" * 48  # MRTD
+        quote_bytes[568:600] = payload_hash_bytes  # report_data first 32 bytes
+        quote_bytes[600:632] = b"\x00" * 32  # report_data last 32 bytes
+
+        cert = {
+            "tdx_quote": bytes(quote_bytes).hex(),
+            "payload_hash": payload_hash,
+        }
+        result = verify_tdx_quote(cert)
+        assert result["present"] is True
+        assert result["report_data_matches"] is True
+        assert result["measurements"] is not None
+        assert result["measurements"]["mrtd"] == "ab" * 48
+
+
+# =============================================================================
+# Integration Test — Full Pipeline (Props L1-L4)
+# =============================================================================
+
+class TestFullPipelineIntegration:
+    """
+    End-to-end test: oracle result → LLM extraction (mocked) → redaction → attestation.
+    Exercises the same code path as POST /api/verify without needing Ollama or a live oracle.
+    """
+
+    def test_full_pipeline_medical(self):
+        """Medical pipeline: oracle → extraction → redaction → certificate → verify."""
+        # Step 1: Simulate oracle result (L1)
+        raw_credential = {
+            "name": "Dr Sarah Chen",
+            "license_number": "NY-MD-2847193",
+            "address": "84 Park Ave, New York",
+            "specialty": "Cardiology",
+            "years_active": 17,
+            "jurisdiction": "New York State",
+            "standing": "In good standing",
+            "initial_registration_date": "January 08, 2007",
+            "medical_school": "Columbia University",
+        }
+        oracle_result = {
+            "credential": raw_credential,
+            "oracle_authenticated": True,
+            "oracle_source": "www.op.nysed.gov",
+            "oracle_tls_fingerprint": "ABCDEF1234",
+            "data_hash": hashlib.sha256(
+                json.dumps(raw_credential, sort_keys=True).encode()
+            ).hexdigest(),
+            "oracle_type": "medical_board",
+        }
+
+        # Step 2: Simulate LLM extraction result (L3) — in production, Ollama does this
+        extracted_facts = {
+            "specialty": "Cardiology",
+            "years_active": 17,
+            "jurisdiction": "New York State",
+            "standing": "In good standing",
+        }
+        model_info = {
+            "model_name": "llama3.2:3b",
+            "model_digest": "sha256:a6990ed6be41test",
+        }
+
+        # Step 3: Merge extraction into credential (same as main.py line 670)
+        enriched_credential = {**raw_credential, **extracted_facts}
+
+        # Step 4: Redaction (L4) — user chose to disclose only specialty + years_active
+        disclosed_fields = ["specialty", "years_active"]
+        redaction_result = apply_redaction_filter(
+            enriched_credential, disclosed_fields, oracle_type="medical_board"
+        )
+
+        # Verify redaction
+        assert "name" not in redaction_result["disclosed"]
+        assert "license_number" not in redaction_result["disclosed"]
+        assert "address" not in redaction_result["disclosed"]
+        assert "specialty" in redaction_result["disclosed"]
+        assert "years_active" in redaction_result["disclosed"]
+        assert redaction_result["disclosed"]["specialty"] == "Cardiology"
+        assert redaction_result["disclosed"]["years_active"] == 17
+
+        # Step 5: Generate certificate (L2)
+        cert = generate_certificate(redaction_result, oracle_result, model_info)
+
+        # Verify certificate structure
+        assert cert["certificate_id"]
+        assert cert["credential"] == {"specialty": "Cardiology", "years_active": 17}
+        assert cert["model_name"] == "llama3.2:3b"
+        assert cert["model_digest"] == "sha256:a6990ed6be41test"
+        assert cert["oracle_source"] == "www.op.nysed.gov"
+        assert "name" not in cert["credential"]
+        assert "license_number" not in cert["credential"]
+        assert len(cert["raw_fields_stripped"]) > 0
+        assert "name" in cert["raw_fields_stripped"]
+        assert cert["signature"]
+        assert cert["signing_key_public"]
+        assert cert["payload_hash"]
+
+        # Step 6: Verify certificate signature (what the verifier page does)
+        valid, reason = verify_certificate(cert)
+        assert valid, f"Certificate should verify: {reason}"
+
+        # Step 7: Tamper and verify rejection
+        tampered = json.loads(json.dumps(cert))
+        tampered["credential"]["specialty"] = "FAKE"
+        valid_tampered, _ = verify_certificate(tampered)
+        assert not valid_tampered, "Tampered certificate must fail"
+
+    def test_full_pipeline_attorney(self):
+        """Attorney pipeline: same flow, different oracle type."""
+        raw_credential = {
+            "name": "Raymond J. Aab",
+            "registration_number": "1190404",
+            "address": "233 Broadway, New York",
+            "phone_number": "(212) 406-1700",
+            "company_name": "Raymond J. Aab Attorney At Law",
+            "year_admitted": 1978,
+            "years_practicing": 48,
+            "judicial_department": "Judicial Department 1",
+            "law_school": "Fordham University School Of Law",
+            "standing": "In good standing",
+            "county": "New York",
+            "jurisdiction": "New York State",
+        }
+        oracle_result = {
+            "credential": raw_credential,
+            "oracle_authenticated": True,
+            "oracle_source": "data.ny.gov",
+            "oracle_tls_fingerprint": "1234ABCD",
+            "data_hash": hashlib.sha256(
+                json.dumps(raw_credential, sort_keys=True).encode()
+            ).hexdigest(),
+            "oracle_type": "attorney",
+        }
+        model_info = {
+            "model_name": "llama3.2:3b",
+            "model_digest": "sha256:test-digest",
+        }
+
+        disclosed_fields = ["law_school", "years_practicing", "standing"]
+        redaction_result = apply_redaction_filter(
+            raw_credential, disclosed_fields, oracle_type="attorney"
+        )
+
+        # Identity fields must be stripped
+        assert "name" not in redaction_result["disclosed"]
+        assert "registration_number" not in redaction_result["disclosed"]
+        assert "address" not in redaction_result["disclosed"]
+        assert "law_school" in redaction_result["disclosed"]
+        assert "years_practicing" in redaction_result["disclosed"]
+
+        cert = generate_certificate(redaction_result, oracle_result, model_info)
+        valid, reason = verify_certificate(cert)
+        assert valid, f"Attorney certificate should verify: {reason}"
+
+        # Verify cross-oracle consistency — same certificate structure regardless of oracle type
+        assert cert["oracle_source"] == "data.ny.gov"
+        assert cert["model_name"] == "llama3.2:3b"
+        assert "name" not in cert["credential"]

@@ -1227,9 +1227,24 @@
     <div class="proof-bar">
       <div class="proof-text">
         <strong>⬡ Props · Attested — credential verified inside Intel TDX enclave</strong>
-        <span id="article-proof-facts">Board-certified cardiologist · 17 years practice · In good standing</span> · Identity not disclosed · Cannot be recovered by anyone
+        <span id="article-proof-facts">Board-certified cardiologist · 17 years practice · In good standing</span><span id="article-proof-onchain"></span> · Identity not disclosed · Cannot be recovered by anyone
       </div>
       <button class="proof-link" id="article-verify-btn" onclick="goToVerifier()">Verify on-chain →</button>
+    </div>
+  </div>
+
+  <!-- EMBEDDABLE BADGE — shows platform integrators how to embed Props verification -->
+  <div id="article-embed-section" style="margin-top:1.5rem;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Embeddable verification badge</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px;">
+        Platform integrators (news sites, social media, forums) can embed this badge in published content. Clicking it opens the trustless verifier — no Props account needed.
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;margin-bottom:10px;">
+        <div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-bottom:6px;">HTML embed code:</div>
+        <code id="article-embed-code" style="font-size:10px;font-family:var(--mono);color:var(--muted);word-break:break-all;line-height:1.6;display:block;"></code>
+      </div>
+      <button class="btn-secondary" onclick="copyEmbedCode()" style="font-size:11px;">Copy embed code</button>
     </div>
   </div>
 
@@ -2019,11 +2034,32 @@ function updateArticleWithCertData(data) {
     proofFacts.textContent = fragments.join(' · ');
   }
 
+  // Show on-chain status in proof bar if available
+  const proofOnchain = document.getElementById('article-proof-onchain');
+  if (proofOnchain && data.on_chain_tx) {
+    proofOnchain.textContent = ' · On-chain: Base Sepolia tx ' + data.on_chain_tx.slice(0, 10) + '...';
+    proofOnchain.style.color = 'var(--green)';
+  }
+
   // Update attribution line
   const attribution = document.getElementById('article-attribution');
   if (attribution) {
     const typeLabel = oracleType === 'attorney' ? 'attorney' : 'medical professional';
     attribution.textContent = '\u2014 anonymous \u00b7 verified ' + typeLabel + ' \u00b7 ' + fragments.slice(0, 2).join(', ');
+  }
+
+  // Generate embeddable badge HTML for platform integrators
+  const embedEl = document.getElementById('article-embed-code');
+  if (embedEl && currentCertId) {
+    const verifyLink = window.location.origin + window.location.pathname + '#verifier/' + currentCertId;
+    const factsText = fragments.join(' · ');
+    const raw = '<a href="' + verifyLink + '" target="_blank" rel="noopener" ' +
+      'style="display:inline-flex;align-items:center;gap:6px;background:#003d2d;color:#00c896;' +
+      'font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;border:1px solid #00a07a;' +
+      'font-family:monospace;text-decoration:none;">' +
+      '\u2b21 Props \u00b7 Attested | ' + factsText + '</a>';
+    embedEl.textContent = raw;
+    embedEl.dataset.raw = raw;
   }
 }
 
@@ -2042,6 +2078,17 @@ function copyVerifyLink() {
 
 function openVerifyTab() {
   window.open(verifyUrl(), '_blank');
+}
+
+function copyEmbedCode() {
+  const el = document.getElementById('article-embed-code');
+  if (el) {
+    navigator.clipboard.writeText(el.dataset.raw || el.textContent).then(() => {
+      showToast('Embed code copied to clipboard');
+    }).catch(() => {
+      prompt('Copy this embed code:', el.dataset.raw || el.textContent);
+    });
+  }
 }
 
 function showToast(msg) {
@@ -2436,6 +2483,22 @@ function renderVerifier(data) {
         html += '<div style="font-size:11px;color:var(--muted);line-height:1.5;">' + escapeHtml(tdx.intel_details || 'Remote DCAP verification not attempted.') + '</div>';
       }
       html += '</div></div>';
+
+      // Enclave measurements (MRTD, RTMR0-3) — lets auditors verify enclave identity
+      const measurements = tdx.measurements || data.tdx_measurements;
+      if (measurements && measurements.mrtd) {
+        html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2);">';
+        html += '<div style="font-size:10px;font-family:var(--mono);color:var(--blue);margin-bottom:8px;font-weight:600;">Enclave Identity Measurements</div>';
+        html += '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);line-height:2;word-break:break-all;">';
+        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">MRTD</span><span title="Hash of TD initial contents — the enclave measurement. Same code = same MRTD.">' + escapeHtml(measurements.mrtd) + '</span></div>';
+        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR0</span><span title="Firmware/BIOS measurement">' + escapeHtml(measurements.rtmr0) + '</span></div>';
+        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR1</span><span title="OS/kernel measurement">' + escapeHtml(measurements.rtmr1) + '</span></div>';
+        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR2</span><span title="Application measurement (Docker image)">' + escapeHtml(measurements.rtmr2) + '</span></div>';
+        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR3</span><span title="Runtime measurement">' + escapeHtml(measurements.rtmr3) + '</span></div>';
+        html += '</div>';
+        html += '<div style="font-size:10px;color:var(--faint);margin-top:6px;line-height:1.5;">MRTD uniquely identifies the enclave build. Same code produces the same MRTD — any modification changes the measurement. Auditors can compare this against a known-good build.</div>';
+        html += '</div>';
+      }
 
       // Verification method badge
       html += '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">';
