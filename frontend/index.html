@@ -1300,7 +1300,8 @@
       <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
           <div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-bottom:4px;">1. Source is real</div>
-          <div style="font-size:11px;color:var(--muted);line-height:1.6;">Data was fetched directly from the authoritative government registry inside the enclave via TLS — not from a document the user uploaded.</div>
+          <div style="font-size:11px;color:var(--muted);line-height:1.6;">Data was fetched directly from the authoritative government registry inside the enclave via TLS with a pinned certificate fingerprint — not from a document the user uploaded.</div>
+          <div id="verifier-oracle-auth" style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:6px;line-height:1.5;"></div>
         </div>
         <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
           <div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-bottom:4px;">2. Nothing was changed</div>
@@ -1336,6 +1337,9 @@
         <span class="attest-val" id="verifier-enclave-type">—</span>
       </div>
     </div>
+
+    <!-- Browser-side Ed25519 signature verification — TRUSTLESS, zero server trust -->
+    <div id="verifier-sig-browser" style="margin-top:12px;"></div>
 
     <div id="verifier-onchain" style="margin-top:12px;"></div>
 
@@ -2123,6 +2127,139 @@ function renderVerifier(data) {
     (data.enclave || cert.enclave || 'unknown') + ' / ' + (cert.platform || 'unknown') +
     (data.in_real_enclave ? ' (real hardware)' : '');
 
+  // Oracle authentication model — display in the "Why you can trust this" section
+  const oracleAuthEl = document.getElementById('verifier-oracle-auth');
+  const authModel = data.oracle_auth_model || cert.oracle_auth_model || '';
+  const authDetails = data.oracle_auth_details || cert.oracle_auth_details || '';
+  if (oracleAuthEl && authModel) {
+    oracleAuthEl.textContent = 'auth: ' + authModel + (authDetails ? ' — ' + authDetails : '');
+  }
+
+  // Browser-side Ed25519 signature verification — TRUSTLESS, zero server trust
+  // Rebuilds the canonical payload and verifies the Ed25519 signature entirely in the browser
+  // using WebCrypto API. Does NOT rely on the server's valid boolean.
+  const sigContainer = document.getElementById('verifier-sig-browser');
+  if (sigContainer && cert.signing_key_public && cert.signature) {
+    sigContainer.innerHTML =
+      '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
+        '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">🔐 Browser-native Ed25519 signature verification — zero server trust</div>' +
+        '<div id="sig-steps" style="font-size:11px;font-family:var(--mono);color:var(--faint);line-height:2;">' +
+          '<div id="sig-step-1" style="color:var(--amber);">① Rebuilding canonical payload from certificate...</div>' +
+          '<div id="sig-step-2" style="color:var(--faint);">② Importing Ed25519 public key via WebCrypto</div>' +
+          '<div id="sig-step-3" style="color:var(--faint);">③ Verifying Ed25519 signature (browser-native)</div>' +
+        '</div>' +
+        '<div class="spinner-sm" style="margin:8px auto;display:block;"></div>' +
+      '</div>';
+
+    (async () => {
+      try {
+        // Step 1: Rebuild canonical payload (must match attestation.py generate_certificate)
+        const payload = {
+          certificate_id: cert.certificate_id,
+          credential: cert.credential,
+          model_name: cert.model_name,
+          model_digest: cert.model_digest || '',
+          oracle_source: cert.oracle_source || '',
+          oracle_tls_fingerprint: cert.oracle_tls_fingerprint || '',
+          oracle_data_hash: cert.oracle_data_hash || '',
+          raw_fields_stripped: cert.raw_fields_stripped,
+          disclosed_fields: cert.disclosed_fields,
+          timestamp: cert.timestamp,
+        };
+        // Canonical JSON: sorted keys, no whitespace (same as Python json.dumps(sort_keys=True, separators=(",",":")))
+        const canonicalJson = canonicalJsonStringify(payload);
+        const payloadBytes = new TextEncoder().encode(canonicalJson);
+        const s1 = document.getElementById('sig-step-1');
+        if (s1) { s1.style.color = 'var(--green)'; s1.textContent = '✓ Canonical payload rebuilt (' + payloadBytes.length + ' bytes, sorted keys, no whitespace)'; }
+
+        // Step 2: Import Ed25519 public key
+        const s2 = document.getElementById('sig-step-2');
+        if (s2) { s2.style.color = 'var(--amber)'; s2.textContent = '② Importing Ed25519 public key via WebCrypto...'; }
+        const pubKeyBytes = hexToBytes(cert.signing_key_public);
+        const cryptoKey = await crypto.subtle.importKey(
+          'raw', pubKeyBytes, { name: 'Ed25519' }, false, ['verify']
+        );
+        if (s2) { s2.style.color = 'var(--green)'; s2.textContent = '✓ Ed25519 public key imported: ' + cert.signing_key_public.slice(0, 16) + '...'; }
+
+        // Step 3: Verify signature
+        const s3 = document.getElementById('sig-step-3');
+        if (s3) { s3.style.color = 'var(--amber)'; s3.textContent = '③ Verifying Ed25519 signature...'; }
+        const sigBytes = hexToBytes(cert.signature);
+        const sigValid = await crypto.subtle.verify(
+          { name: 'Ed25519' }, cryptoKey, sigBytes, payloadBytes
+        );
+
+        if (sigValid) {
+          if (s3) { s3.style.color = 'var(--green)'; s3.textContent = '✓ Signature VALID — certificate is authentic (verified in your browser)'; }
+        } else {
+          if (s3) { s3.style.color = 'var(--red)'; s3.textContent = '✗ Signature INVALID — certificate may have been tampered with'; }
+        }
+
+        // Remove spinner, update container styling
+        const spinner = sigContainer.querySelector('.spinner-sm');
+        if (spinner) spinner.remove();
+        const container = sigContainer.querySelector('div');
+        if (container) {
+          if (sigValid) {
+            container.style.background = 'var(--green-dim)';
+            container.style.borderColor = 'var(--green-mid)';
+            const label = container.querySelector('div');
+            if (label) label.style.color = 'var(--green)';
+          } else {
+            container.style.background = 'var(--red-dim)';
+            container.style.borderColor = '#660000';
+            const label = container.querySelector('div');
+            if (label) label.style.color = 'var(--red)';
+          }
+        }
+
+        // Add detail block
+        const detailDiv = document.createElement('div');
+        detailDiv.innerHTML =
+          '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:10px;line-height:1.8;border-top:1px solid var(--border2);padding-top:10px;">' +
+            'algorithm: Ed25519 (WebCrypto API — browser-native)<br>' +
+            'public_key: ' + escapeHtml(cert.signing_key_public) + '<br>' +
+            'signature: ' + escapeHtml(cert.signature.slice(0, 32)) + '...<br>' +
+            'payload_size: ' + payloadBytes.length + ' bytes<br>' +
+            'result: ' + (sigValid
+              ? '<span style="color:var(--green);font-weight:600;">✓ authentic — no server trust required</span>'
+              : '<span style="color:var(--red);font-weight:600;">✗ tampered or invalid</span>') +
+          '</div>';
+        container.appendChild(detailDiv);
+
+        // Update the main verification status if browser check disagrees with server
+        if (!sigValid && valid) {
+          // Server said valid but browser says invalid — override with browser result
+          statusBlock.className = 'verify-status invalid';
+          document.getElementById('verify-icon').textContent = '✗';
+          document.getElementById('verify-title').textContent = 'Verification failed';
+          document.getElementById('verify-sub').textContent = 'Browser-side Ed25519 check failed — certificate may be tampered';
+        }
+      } catch (err) {
+        // WebCrypto Ed25519 not supported (older browsers) — show fallback
+        const spinner = sigContainer.querySelector('.spinner-sm');
+        if (spinner) spinner.remove();
+        const s1 = document.getElementById('sig-step-1');
+        const s2 = document.getElementById('sig-step-2');
+        const s3 = document.getElementById('sig-step-3');
+        if (s1) s1.style.display = 'none';
+        if (s2) s2.style.display = 'none';
+        if (s3) s3.style.display = 'none';
+        const container = sigContainer.querySelector('div');
+        if (container) {
+          const fallbackDiv = document.createElement('div');
+          fallbackDiv.innerHTML =
+            '<div style="font-size:11px;color:var(--muted);line-height:1.6;">' +
+              'Browser-native Ed25519 verification unavailable: ' + escapeHtml(err.message) + '<br>' +
+              '<span style="color:var(--faint);">Falling back to server-side verification (result above). ' +
+              'Ed25519 WebCrypto requires Chrome 113+, Firefox 129+, or Safari 17+.</span>' +
+            '</div>';
+          container.appendChild(fallbackDiv);
+        }
+      }
+    })();
+  }
+
   // On-chain verification — BROWSER-NATIVE, trustless
   // Instead of relying on our server's eth_call, the browser reads directly from Base Sepolia.
   const onchainContainer = document.getElementById('verifier-onchain');
@@ -2570,6 +2707,27 @@ function truncate(s, n) {
 
 function formatFieldName(key) {
   return key.replace(/_/g, ' ');
+}
+
+// Canonical JSON serialization — matches Python json.dumps(sort_keys=True, separators=(",",":"))
+// Required for browser-side Ed25519 signature verification: the payload must be
+// byte-identical to what the enclave signed.
+function canonicalJsonStringify(obj) {
+  if (obj === null || obj === undefined) return 'null';
+  if (typeof obj === 'boolean') return obj ? 'true' : 'false';
+  if (typeof obj === 'number') {
+    // Python outputs integers without .0, match that
+    if (Number.isInteger(obj)) return String(obj);
+    return JSON.stringify(obj);
+  }
+  if (typeof obj === 'string') return JSON.stringify(obj);
+  if (Array.isArray(obj)) {
+    return '[' + obj.map(canonicalJsonStringify).join(',') + ']';
+  }
+  // Object: sort keys alphabetically (same as Python sort_keys=True)
+  const keys = Object.keys(obj).sort();
+  const pairs = keys.map(k => JSON.stringify(k) + ':' + canonicalJsonStringify(obj[k]));
+  return '{' + pairs.join(',') + '}';
 }
 </script>
 </body>

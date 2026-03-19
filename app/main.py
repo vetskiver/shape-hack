@@ -23,6 +23,8 @@ import hashlib
 import json
 import os
 import pathlib
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
@@ -30,15 +32,73 @@ from typing import Optional
 import httpx
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as rsa_padding
 from cryptography.hazmat.primitives import hashes, serialization
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
-from oracle import fetch_credential, ORACLE_TARGET
+from oracle import fetch_credential, ORACLE_TARGET, get_tls_cert_expiry, NYSED_HOSTNAME
 from extractor import extract_credential_facts, wait_for_ollama, OLLAMA_BASE_URL, MODEL_NAME
 from redaction import apply_redaction_filter, get_all_disclosable_fields
 from attestation import generate_certificate, verify_certificate, verify_tdx_quote
+
+
+# ---------------------------------------------------------------------------
+# Rate limiter — prevents abuse of expensive endpoints (oracle scrape, forge)
+# Token-bucket per client IP. Configurable via env vars.
+# ---------------------------------------------------------------------------
+
+class _RateLimiter:
+    """
+    In-memory token-bucket rate limiter keyed by client IP.
+    Not suitable for multi-process deployments, but correct for a single
+    Phala Cloud container serving all requests.
+    """
+
+    def __init__(self, max_tokens: int, refill_seconds: float):
+        self._max = max_tokens
+        self._refill = refill_seconds
+        self._buckets: dict[str, list[float]] = defaultdict(lambda: [float(max_tokens), time.monotonic()])
+
+    def allow(self, key: str) -> bool:
+        bucket = self._buckets[key]
+        now = time.monotonic()
+        elapsed = now - bucket[1]
+        # Refill tokens
+        bucket[0] = min(self._max, bucket[0] + elapsed / self._refill)
+        bucket[1] = now
+        if bucket[0] >= 1.0:
+            bucket[0] -= 1.0
+            return True
+        return False
+
+    def cleanup(self):
+        """Remove stale entries older than 10 minutes."""
+        now = time.monotonic()
+        stale = [k for k, v in self._buckets.items() if now - v[1] > 600]
+        for k in stale:
+            del self._buckets[k]
+
+
+# /api/verify is expensive (~30s Chromium scrape + LLM) — 5 requests per minute per IP
+_verify_limiter = _RateLimiter(
+    max_tokens=int(os.environ.get("RATE_LIMIT_VERIFY", "5")),
+    refill_seconds=float(os.environ.get("RATE_LIMIT_VERIFY_REFILL", "12")),  # 1 token per 12s = 5/min
+)
+
+# /api/forge is cheap but public — 20 requests per minute per IP
+_forge_limiter = _RateLimiter(
+    max_tokens=int(os.environ.get("RATE_LIMIT_FORGE", "20")),
+    refill_seconds=float(os.environ.get("RATE_LIMIT_FORGE_REFILL", "3")),
+)
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP, respecting X-Forwarded-For behind Phala Cloud proxy."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -180,9 +240,14 @@ class _CertificateStore:
     """
 
     def __init__(self, store_dir: pathlib.Path):
-        self._dir = store_dir
         self._cache: dict[str, dict] = {}
-        self._dir.mkdir(parents=True, exist_ok=True)
+        try:
+            store_dir.mkdir(parents=True, exist_ok=True)
+            self._dir = store_dir
+        except OSError as e:
+            print(f"[store] Cannot create {store_dir} ({e}) — running memory-only")
+            self._dir = None
+            return
         # Load existing certificates from disk on startup
         loaded = 0
         for f in self._dir.glob("*.json"):
@@ -240,6 +305,14 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass  # dstack not available — local dev, skip is fine
 
+    # Props L1 — check TLS certificate expiry at startup (non-blocking)
+    try:
+        cert_info = get_tls_cert_expiry(NYSED_HOSTNAME)
+        print(f"[startup] TLS cert for {NYSED_HOSTNAME}: {cert_info['days_remaining']} days remaining "
+              f"(expires {cert_info['not_after']})")
+    except Exception as e:
+        print(f"[startup] TLS cert expiry check failed (non-blocking): {e}")
+
     if not skip_ollama:
         wait_for_ollama()
         try:
@@ -256,7 +329,21 @@ async def lifespan(app: FastAPI):
             print(f"[startup] Model pull warning: {e}")
     else:
         print("[startup] SKIP_OLLAMA_WAIT=true — skipping Ollama check and model pull")
+
+    # Periodic rate limiter cleanup task
+    import asyncio
+
+    async def _cleanup_rate_limiters():
+        while True:
+            await asyncio.sleep(300)  # every 5 minutes
+            _verify_limiter.cleanup()
+            _forge_limiter.cleanup()
+
+    cleanup_task = asyncio.create_task(_cleanup_rate_limiters())
+
     yield
+
+    cleanup_task.cancel()
 
 
 app = FastAPI(title="Props Oracle", version="0.6.0", lifespan=lifespan)
@@ -309,6 +396,31 @@ class VerifyRequest(BaseModel):
     encrypted_credentials: Optional[str] = None   # RSA-OAEP base64 (production — browser encrypts)
     disclosed_fields: list[str]                    # e.g. ["specialty", "years_active"]
 
+    def validate_inputs(self, oracle_target: str):
+        """Validate input fields to prevent abuse and injection."""
+        # Validate disclosed_fields — must be non-empty, reasonable length, alphanumeric+underscore
+        if not self.disclosed_fields:
+            raise HTTPException(status_code=400, detail="At least one disclosed field is required")
+        if len(self.disclosed_fields) > 20:
+            raise HTTPException(status_code=400, detail="Too many disclosed fields (max 20)")
+        import re
+        for field in self.disclosed_fields:
+            if not isinstance(field, str) or len(field) > 50:
+                raise HTTPException(status_code=400, detail=f"Invalid field name: too long or wrong type")
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
+                raise HTTPException(status_code=400, detail=f"Invalid field name: {field}")
+
+        # Validate encrypted_credentials length (RSA-2048 OAEP base64 is ~344 chars)
+        if self.encrypted_credentials and len(self.encrypted_credentials) > 2000:
+            raise HTTPException(status_code=400, detail="Encrypted credentials payload too large")
+
+        # Validate credentials dict size
+        if self.credentials:
+            cred_json = json.dumps(self.credentials)
+            if len(cred_json) > 5000:
+                raise HTTPException(status_code=400, detail="Credentials payload too large")
+
+
 class ForgeRequest(BaseModel):
     type: str                   # "pdf" | "fake_registry" | "tampered"
     data: Optional[dict] = None # optional fake data payload (ignored — rejection is architectural)
@@ -350,6 +462,22 @@ async def api_info():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/api/tls-status")
+async def tls_status():
+    """
+    Props L1 — TLS certificate expiry monitoring.
+    Returns the expiry status of pinned TLS certificates so operators can plan
+    fingerprint rotation before the hardcoded pin breaks.
+    """
+    results = {}
+    for hostname in [NYSED_HOSTNAME]:
+        try:
+            results[hostname] = get_tls_cert_expiry(hostname)
+        except Exception as e:
+            results[hostname] = {"error": str(e), "hostname": hostname}
+    return {"tls_certificates": results}
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +589,7 @@ def enforce_oracle_authenticated(oracle_result: dict) -> bool:
 # =============================================================================
 
 @app.post("/api/verify")
-def verify_credential_endpoint(request: VerifyRequest):
+def verify_credential_endpoint(request: VerifyRequest, raw_request: Request):
     """
     Full Props pipeline with real-time progress streaming:
       1. L1 — Oracle: fetches credential from configured oracle source
@@ -475,6 +603,16 @@ def verify_credential_endpoint(request: VerifyRequest):
     S8/S10: ORACLE_TARGET env var selects the data source (medical_board | attorney).
     Same enclave, same attestation, same redaction — different oracle.
     """
+    # Rate limiting — oracle scrape is expensive (~30s), prevent abuse
+    client_ip = _get_client_ip(raw_request)
+    if not _verify_limiter.allow(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. The oracle scrape is resource-intensive. Please wait before retrying.",
+        )
+
+    # Input validation
+    request.validate_inputs(ORACLE_TARGET)
 
     # Pre-validate before starting the stream
     if request.encrypted_credentials:
@@ -554,6 +692,8 @@ def verify_credential_endpoint(request: VerifyRequest):
 
         certificate["oracle_type"] = oracle_type
         certificate["extraction_method"] = extraction_method
+        certificate["oracle_auth_model"] = oracle_result.get("oracle_auth_model", "")
+        certificate["oracle_auth_details"] = oracle_result.get("oracle_auth_details", "")
         certificates[certificate["certificate_id"]] = certificate
 
         # On-chain storage (best-effort, with explicit warning if unavailable)
@@ -668,6 +808,9 @@ async def verify_certificate_endpoint(certificate_id: str):
         "on_chain_verified": on_chain_verification.get("verified", False),
         "on_chain_matches": on_chain_verification.get("matches", False),
         "on_chain_verification": on_chain_verification,
+        # Oracle authentication model metadata — helps judges understand the auth story
+        "oracle_auth_model": cert.get("oracle_auth_model", ""),
+        "oracle_auth_details": cert.get("oracle_auth_details", ""),
     }
 
 
@@ -685,7 +828,7 @@ async def verify_certificate_endpoint(certificate_id: str):
 # =============================================================================
 
 @app.post("/api/forge")
-async def forge_attempt(request: ForgeRequest):
+async def forge_attempt(request: ForgeRequest, raw_request: Request):
     """
     Props L5 — demonstrates that Props architecturally rejects fraud (section 2.3).
 
@@ -696,6 +839,14 @@ async def forge_attempt(request: ForgeRequest):
 
     Returns HTTP 403 with structured rejection JSON for each attack.
     """
+    # Rate limiting — prevent abuse of the adversarial demo endpoint
+    client_ip = _get_client_ip(raw_request)
+    if not _forge_limiter.allow(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded for adversarial demo endpoint.",
+        )
+
     attack_type = request.type.strip().lower()
     submitted_data = request.data or {}
 

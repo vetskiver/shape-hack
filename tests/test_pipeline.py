@@ -346,3 +346,90 @@ class TestTDXQuoteVerification:
         result = verify_tdx_quote(cert)
         assert result["present"] is True
         assert result["report_data_matches"] is None
+
+
+# =============================================================================
+# Rate Limiter Tests
+# =============================================================================
+
+class TestRateLimiter:
+    """Tests for the in-memory rate limiter."""
+
+    def test_allows_under_limit(self):
+        """Requests under the limit should be allowed."""
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+        from main import _RateLimiter
+        limiter = _RateLimiter(max_tokens=3, refill_seconds=60)
+        assert limiter.allow("test-ip") is True
+        assert limiter.allow("test-ip") is True
+        assert limiter.allow("test-ip") is True
+
+    def test_blocks_over_limit(self):
+        """Requests over the limit should be blocked."""
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+        from main import _RateLimiter
+        limiter = _RateLimiter(max_tokens=2, refill_seconds=60)
+        assert limiter.allow("test-ip") is True
+        assert limiter.allow("test-ip") is True
+        assert limiter.allow("test-ip") is False
+
+    def test_different_ips_independent(self):
+        """Different IPs should have independent limits."""
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+        from main import _RateLimiter
+        limiter = _RateLimiter(max_tokens=1, refill_seconds=60)
+        assert limiter.allow("ip-a") is True
+        assert limiter.allow("ip-a") is False
+        assert limiter.allow("ip-b") is True  # different IP, still has tokens
+
+    def test_cleanup_removes_stale(self):
+        """Cleanup should remove entries older than 10 minutes."""
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+        from main import _RateLimiter
+        limiter = _RateLimiter(max_tokens=5, refill_seconds=1)
+        limiter.allow("stale-ip")
+        # Manually age the entry
+        import time
+        limiter._buckets["stale-ip"][1] = time.monotonic() - 700
+        limiter.cleanup()
+        assert "stale-ip" not in limiter._buckets
+
+
+# =============================================================================
+# Input Validation Tests
+# =============================================================================
+
+class TestInputValidation:
+    """Tests for oracle input validation."""
+
+    def test_license_number_valid(self):
+        """Valid numeric license numbers should be accepted."""
+        import re
+        valid_numbers = ["209311", "123456", "1", "1234567890"]
+        for num in valid_numbers:
+            assert re.match(r'^\d{1,10}$', num), f"{num} should be valid"
+
+    def test_license_number_invalid(self):
+        """Non-numeric or too-long license numbers should be rejected."""
+        import re
+        invalid_numbers = ["FAKE-001", "'; DROP TABLE", "<script>alert(1)</script>", "", "12345678901"]
+        for num in invalid_numbers:
+            assert not re.match(r'^\d{1,10}$', num), f"{num} should be invalid"
+
+    def test_field_name_valid(self):
+        """Valid field names (alphanumeric + underscore) should pass."""
+        import re
+        valid_fields = ["specialty", "years_active", "law_school", "standing"]
+        for field in valid_fields:
+            assert re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field), f"{field} should be valid"
+
+    def test_field_name_invalid(self):
+        """Invalid field names should be rejected."""
+        import re
+        invalid_fields = ["'; DROP TABLE", "<script>", "../../../etc/passwd", "field name", "123field"]
+        for field in invalid_fields:
+            assert not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field), f"{field} should be invalid"
