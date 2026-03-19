@@ -1,0 +1,23 @@
+# Environment secrets — NEVER commit .env (contains PRIVATE_KEY)
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+scripts/venv/
+
+# Cache
+cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Claude
+.claude/

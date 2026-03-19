@@ -140,11 +140,12 @@ def _ollama_generate(prompt: str) -> str:
 def get_model_info() -> dict:
     """
     Props L3 — returns model name and a digest that goes into the attestation.
-    Ollama's /api/show returns the model's sha256 manifest digest.
+    Ollama's /api/show returns the model's sha256 manifest digest in the
+    top-level "digest" field (e.g. "sha256:a6990ed6be41...").
 
     HARD-FAIL: If we cannot retrieve the real model digest, the attestation
     would contain a fake hash — violating L3 integrity. We raise instead
-    of falling back to sha256(MODEL_NAME).
+    of silently falling back.
     """
     resp = httpx.post(
         f"{OLLAMA_BASE_URL}/api/show",
@@ -153,16 +154,27 @@ def get_model_info() -> dict:
     )
     resp.raise_for_status()
     data = resp.json()
-    # Ollama returns the digest in modelinfo or details
-    digest = (
-        data.get("details", {}).get("parent_model", "")
-        or data.get("modelinfo", {}).get("general.basename", "")
-        or ""
-    )
-    # Fall back: hash the full model info blob for a stable identifier
+
+    # Ollama /api/show returns the manifest digest as a top-level "digest" field
+    # e.g. "sha256:a6990ed6be41..." — this is the canonical model identifier
+    digest = data.get("digest", "")
+
+    # Fallback: some Ollama versions put it in details.parent_model
     if not digest:
-        model_files = json.dumps(data.get("model_info", {}), sort_keys=True)
-        digest = hashlib.sha256(model_files.encode()).hexdigest()
+        digest = data.get("details", {}).get("parent_model", "")
+
+    # Props L3 HARD-FAIL: no silent fallback to hashed metadata.
+    # A fake digest violates the pinned model guarantee — the attestation
+    # must contain the real model file hash so auditors can verify which
+    # exact model weights produced the output.
+    if not digest:
+        raise RuntimeError(
+            f"Props L3 integrity violation: cannot retrieve model digest for "
+            f"'{MODEL_NAME}' from Ollama at {OLLAMA_BASE_URL}. "
+            f"The attestation requires a real model hash — refusing to fall back "
+            f"to a synthetic digest. Ensure the model is pulled and Ollama is running."
+        )
+
     return {
         "model_name": MODEL_NAME,
         "model_digest": digest,
