@@ -9,6 +9,9 @@ __pycache__/
 venv/
 scripts/venv/
 
+# Foundry build artifacts (stale — ABI is inlined in onchain.py)
+out/
+
 # Cache
 cache/
 

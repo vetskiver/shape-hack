@@ -2211,10 +2211,29 @@ function renderVerifier(data) {
   statusBlock.className = 'verify-status ' + (valid ? 'valid' : 'invalid');
   document.getElementById('verify-icon').textContent = valid ? '✓' : '✗';
   document.getElementById('verify-title').textContent = valid ? 'Credential verified' : 'Verification failed';
+  const trustLevel = data.trust_level || (data.in_real_enclave ? 'hardware' : 'simulated');
   document.getElementById('verify-sub').textContent = valid
-    ? 'Signature valid · Intel TDX enclave authenticated · Identity not disclosed'
+    ? (trustLevel === 'hardware'
+        ? 'Signature valid · Intel TDX enclave authenticated · Identity not disclosed'
+        : 'Signature valid · NO hardware attestation — simulated enclave')
     : 'Signature invalid or certificate tampered';
   document.getElementById('verify-badge-line').style.display = valid ? '' : 'none';
+
+  // Trust level banner — honest about hardware vs simulated
+  let trustBanner = document.getElementById('trust-level-banner');
+  if (!trustBanner) {
+    trustBanner = document.createElement('div');
+    trustBanner.id = 'trust-level-banner';
+    const statusBlock = document.getElementById('verify-status-block');
+    statusBlock.parentNode.insertBefore(trustBanner, statusBlock.nextSibling);
+  }
+  if (trustLevel === 'hardware') {
+    trustBanner.style.cssText = 'background:rgba(52,199,89,0.08);border:1px solid rgba(52,199,89,0.25);border-radius:10px;padding:12px 16px;margin:12px 0;font-size:12px;color:var(--green);';
+    trustBanner.innerHTML = '<strong>Trust level: HARDWARE</strong> — ' + escapeHtml(data.trust_detail || 'Real Intel TDX enclave with hardware attestation');
+  } else {
+    trustBanner.style.cssText = 'background:rgba(255,149,0,0.08);border:1px solid rgba(255,149,0,0.25);border-radius:10px;padding:12px 16px;margin:12px 0;font-size:12px;color:var(--amber);';
+    trustBanner.innerHTML = '<strong>Trust level: SIMULATED</strong> — ' + escapeHtml(data.trust_detail || 'Signature is valid but no hardware enclave backs this certificate');
+  }
 
   // Credential fields
   const fieldsContainer = document.getElementById('verifier-credential-fields');

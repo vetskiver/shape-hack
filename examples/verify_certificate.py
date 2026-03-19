@@ -39,8 +39,8 @@ from cryptography.exceptions import InvalidSignature
 # ---------------------------------------------------------------------------
 # Ethereum Sepolia RPC + Props contract
 # ---------------------------------------------------------------------------
-SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com"
-CONTRACT_ADDRESS = "0xB2c9D43E4668d93EB8C4275210f9d28709f4639b"
+BASE_SEPOLIA_RPC = "https://sepolia.base.org"
+CONTRACT_ADDRESS = "0x07a7c1efc53923b202191a888fad41e54cae7ca6"
 
 
 def keccak256(data: bytes) -> bytes:
@@ -134,7 +134,7 @@ def verify_onchain(cert: dict) -> tuple[bool, str]:
         calldata = selector + cert_key.rjust(32, b"\x00")
 
         r = httpx.post(
-            SEPOLIA_RPC,
+            BASE_SEPOLIA_RPC,
             json={
                 "jsonrpc": "2.0",
                 "method": "eth_call",

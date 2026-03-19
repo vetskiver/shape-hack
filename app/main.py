@@ -1055,9 +1055,24 @@ async def verify_certificate_endpoint(certificate_id: str):
         certificate_id, cert.get("payload_hash", "")
     )
 
+    # Trust level — honest about what backs this certificate.
+    # "hardware": real TDX enclave + real TDX quote present
+    # "simulated": signature is valid but no hardware attestation backs it
+    has_real_enclave = cert.get("in_real_enclave", False)
+    has_tdx_quote = tdx_verification.get("present", False)
+    if has_real_enclave and has_tdx_quote:
+        trust_level = "hardware"
+        trust_detail = "Certificate issued inside a real Intel TDX enclave with hardware attestation"
+    else:
+        trust_level = "simulated"
+        trust_detail = ("Certificate signature is mathematically valid, but was issued "
+                        "outside a hardware enclave. No TDX quote backs this certificate.")
+
     return {
         "valid": valid,
         "reason": reason,
+        "trust_level": trust_level,
+        "trust_detail": trust_detail,
         "certificate_id": certificate_id,
         # Only return credential fields if signature checks out
         "credential": cert["credential"] if valid else None,

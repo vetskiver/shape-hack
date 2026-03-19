@@ -35,6 +35,20 @@ import httpx
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 MODEL_NAME = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
 
+# Props L3 — Pinned model digest (section 3.2)
+# This is the expected Ollama manifest digest for our approved model.
+# If the runtime digest doesn't match, certificate issuance is REFUSED.
+# This turns "measured model" into "pinned model" — the distinction the
+# Props paper requires. The digest is part of the enclave measurement
+# because changing it requires a code change → new MRTD.
+#
+# To update: pull the new model, run `ollama show llama3.2:3b --json`,
+# copy the "digest" field here, and redeploy.
+PINNED_MODEL_DIGEST = os.environ.get("PINNED_MODEL_DIGEST", "sha256:a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3be36a26571d")
+
+# Set SKIP_MODEL_PIN=true ONLY for local development without Ollama.
+SKIP_MODEL_PIN = os.environ.get("SKIP_MODEL_PIN", "false").lower() == "true"
+
 # ---------------------------------------------------------------------------
 # Per-oracle-type extraction config (S8: pluggable oracle)
 # ---------------------------------------------------------------------------
@@ -212,9 +226,29 @@ def get_model_info() -> dict:
             f"to a synthetic digest. Ensure the model is pulled and Ollama is running."
         )
 
+    # Props L3 — PINNED MODEL ENFORCEMENT (section 3.2)
+    # Compare runtime digest against the hardcoded expected digest.
+    # This is the difference between "measured" and "pinned":
+    #   measured = record what ran
+    #   pinned   = reject anything that isn't the expected model
+    if PINNED_MODEL_DIGEST and not SKIP_MODEL_PIN:
+        if digest != PINNED_MODEL_DIGEST:
+            raise RuntimeError(
+                f"Props L3 integrity violation: model digest mismatch. "
+                f"Expected pinned digest '{PINNED_MODEL_DIGEST}', "
+                f"but Ollama reported '{digest}'. "
+                f"This could indicate model tampering or an unexpected update. "
+                f"Update PINNED_MODEL_DIGEST in extractor.py if this is intentional."
+            )
+        print(f"[extractor] Props L3 pinned model OK: {digest[:32]}...")
+    elif SKIP_MODEL_PIN:
+        print(f"[extractor] WARNING: Model pin check SKIPPED (SKIP_MODEL_PIN=true). "
+              f"Runtime digest: {digest}")
+
     return {
         "model_name": MODEL_NAME,
         "model_digest": digest,
+        "pinned": not SKIP_MODEL_PIN,
         "ollama_url": OLLAMA_BASE_URL,
     }
 
