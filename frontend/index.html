@@ -1744,9 +1744,9 @@ async function submitVerify() {
           } else if (evt.stage === 'oracle' && evt.status === 'done') {
             doneLoadingStep(1);
             doneLoadingStep(2);
-          } else if (evt.stage === 'llm' && evt.status === 'running') {
+          } else if ((evt.stage === 'llm' || evt.stage === 'extraction') && evt.status === 'running') {
             activateLoadingStep(3);
-          } else if (evt.stage === 'llm' && evt.status === 'done') {
+          } else if ((evt.stage === 'llm' || evt.stage === 'extraction') && evt.status === 'done') {
             doneLoadingStep(3);
           } else if (evt.stage === 'attestation' && evt.status === 'running') {
             activateLoadingStep(4);

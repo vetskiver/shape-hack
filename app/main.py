@@ -930,16 +930,16 @@ def verify_credential_endpoint(request: VerifyRequest, raw_request: Request):
         yield json.dumps({"stage": "oracle", "status": "done", "fields": len(raw_credential)}) + "\n"
         print(f"[api/verify] Oracle returned {len(raw_credential)} fields (type={oracle_type})")
 
-        # Stage 2: LLM extraction
-        yield json.dumps({"stage": "llm", "status": "running"}) + "\n"
+        # Stage 2: Credential extraction (direct or LLM)
+        yield json.dumps({"stage": "extraction", "status": "running"}) + "\n"
         try:
             extraction = extract_credential_facts(raw_credential, oracle_type=oracle_type)
         except Exception as e:
-            yield json.dumps({"stage": "llm", "status": "error", "error": f"LLM extraction failed: {e}"}) + "\n"
+            yield json.dumps({"stage": "extraction", "status": "error", "error": f"Extraction failed: {e}"}) + "\n"
             return
 
         extraction_method = extraction.get("extraction_method", "unknown")
-        yield json.dumps({"stage": "llm", "status": "done", "method": extraction_method}) + "\n"
+        yield json.dumps({"stage": "extraction", "status": "done", "method": extraction_method}) + "\n"
         print(f"[api/verify] Extraction method: {extraction_method}")
 
         enriched_credential = {**raw_credential, **extraction["extracted_facts"]}
