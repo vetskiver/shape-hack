@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
 
   props-oracle:
-    image: vetskiver/props-oracle:s22
+    image: vetskiver/props-oracle:s23
     ports:
       - "8080:8080"
     volumes:
