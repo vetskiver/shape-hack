@@ -9,6 +9,26 @@ Implements [Props: Verifiable ML Inference over Private Data](https://arxiv.org/
 
 **Contract:** [`0x07a7c1efc53923b202191a888fad41e54cae7ca6`](https://sepolia.basescan.org/address/0x07a7c1efc53923b202191a888fad41e54cae7ca6) on Base Sepolia (chain 84532)
 
+## Judge Access
+
+Judges can use the live website directly here:
+
+- **Attestia live app:** [https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network](https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network)
+
+Suggested path through the app:
+
+1. Open **Screen 01 — Expert portal**
+2. Use the medical-board flow with license number `209311`
+3. Generate a certificate and follow the verifier link
+4. Check the hardware-backed trust result and on-chain verification
+5. Optionally explore the adversarial-defense screen to see why forged paths fail
+
+Notes:
+
+- No login is required.
+- The live Phala deployment is the canonical demo path.
+- The verifier is public, so issued certificates can be shared and checked independently.
+
 ---
 
 ## What it does
