@@ -700,7 +700,7 @@ async def root():
         if frontend_file.exists():
             return HTMLResponse(content=frontend_file.read_text(), status_code=200)
     return HTMLResponse(
-        content="<h1>Props Oracle API</h1><p>Frontend not found. API is running at /api/info</p>",
+        content="<h1>Attestia API</h1><p>Frontend not found. API is running at /api/info</p>",
         status_code=200,
     )
 
@@ -709,7 +709,7 @@ async def root():
 async def api_info():
     readiness = _get_readiness()
     return {
-        "service": "Props Anonymous Expert Oracle",
+        "service": "Attestia",
         "version": _SERVICE_VERSION,
         "status": readiness["status"],
         "verify_enabled": readiness["verify_enabled"],
@@ -765,7 +765,7 @@ async def developer_api():
     base_url = "{your-props-instance}"
 
     return {
-        "service": "Props Protocol — Developer API",
+        "service": "Attestia Developer API",
         "version": "0.6.0",
         "description": (
             "Props provides verified anonymous credentials as a protocol. "
@@ -944,7 +944,7 @@ async def list_oracles():
       - That's it. Same enclave, same attestation, same redaction.
     """
     return {
-        "protocol": "Props Anonymous Expert Oracle",
+        "protocol": "Attestia (powered by Props protocol)",
         "description": (
             "Props is a protocol with pluggable oracles. Each oracle connects "
             "the TEE to a different authoritative data source. Same enclave, "

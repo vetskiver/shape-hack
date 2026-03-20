@@ -1,9 +1,12 @@
-# Anonymous Expert Oracle
+# Attestia
 
 **"We built the first decentralised protocol for verified anonymous speech."**
 
 Built for the Encode Club Shape Rotator Hackathon — TEE track.
 Implements [Props: Verifiable ML Inference over Private Data](https://arxiv.org/pdf/2410.20522) (Juels & Koushanfar, 2024).
+
+**Product name:** Attestia  
+**Protocol / paper lineage:** Props
 
 **Live deployment:** https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network
 
@@ -33,7 +36,7 @@ Notes:
 
 ## What it does
 
-A doctor, lawyer, or whistleblower submits their professional credentials. The Props pipeline inside an Intel TDX enclave authenticates against the authoritative licensing registry, extracts credential facts via LLM, strips identity fields, and produces a signed certificate stored permanently on Base (Coinbase L2). The expert attaches this certificate to anything they publish. Readers verify the credential without knowing who the expert is.
+A doctor, lawyer, or whistleblower submits their professional credentials. The Attestia pipeline inside an Intel TDX enclave authenticates against the authoritative licensing registry, extracts credential facts via LLM, strips identity fields, and produces a signed certificate stored permanently on Base (Coinbase L2). The expert attaches this certificate to anything they publish. Readers verify the credential without knowing who the expert is.
 
 ### Business model
 
@@ -209,7 +212,7 @@ curl https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phal
 | CVM ID | `6faa38933e632ca8dd2795fa68ad043c0bb6ad82` |
 | App ID | `6faa38933e632ca8dd2795fa68ad043c0bb6ad82` |
 | Public URL | `https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network` |
-| Docker image | `vetskiver/props-oracle:s31` |
+| Docker image | `vetskiver/props-oracle:s32` |
 
 ### Runtime envs currently used by the live CVM
 
