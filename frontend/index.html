@@ -1412,7 +1412,7 @@
 
 <!-- NAVIGATION -->
 <nav class="nav">
-  <div class="nav-logo" onclick="navigate('verify')">⬡ <span>Attestia</span> — Powered by Props</div>
+  <div class="nav-logo" onclick="navigate('verify')">⬡ <span>Attestia</span></div>
   <div class="nav-tabs">
     <button class="tab" id="nav-verify" onclick="navigate('verify')">
       01 Verify <span class="lbadge">L1 L4</span>
@@ -1434,7 +1434,7 @@
 </nav>
 
 <!-- ============================================================
-     VIEW 1 — CREDENTIAL SUBMISSION (Props L1 + L4)
+     VIEW 1 — CREDENTIAL SUBMISSION (L1 + L4)
      ============================================================ -->
 <div class="view" id="view-verify">
   <div class="view-header">
@@ -1445,7 +1445,7 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-label">Attestia trust stack</span>
       <span class="layer-summary-copy">L1-L5 map the trust chain: source, enclave, model, redaction, and adversarial defense.</span>
     </summary>
     <div class="layer-pill-list">
@@ -1460,7 +1460,7 @@
   <div class="browser">
     <div class="browser-bar">
       <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
-      <div class="url-bar"><span class="url-lock">🔒</span> props.io/verify</div>
+      <div class="url-bar"><span class="url-lock">🔒</span> attestia.app/verify</div>
     </div>
     <div class="page-content">
       <div class="section-tag">§ Props paper — section 3.1 oracle + section 2.4 redaction</div>
@@ -1496,7 +1496,7 @@
       <div class="form-group">
         <div class="form-label">
           Oracle source
-          <span class="form-hint">L1 — pluggable oracle (Props as protocol)</span>
+          <span class="form-hint">L1 — pluggable oracle (Attestia, powered by Props)</span>
         </div>
         <select class="form-input" id="inp-oracle-source" onchange="switchOracleSource()">
           <option value="medical_board" selected>NY State Medical Board — nysed.gov/op</option>
@@ -1556,7 +1556,7 @@
           <div class="journey-divider-title">Choose the proof you want to disclose</div>
           <div class="journey-divider-text">This is the core product moment: credibility leaves the enclave, identity does not. Keep the list short for a cleaner demo outcome.</div>
         </div>
-        <div class="journey-divider-meta">Props L4 filter</div>
+        <div class="journey-divider-meta">L4 redaction filter</div>
       </div>
 
       <div class="toggle-section-title">Choose what to disclose — section 2.4 filter f(X) = X'</div>
@@ -1678,7 +1678,7 @@
         </div>
         <div class="runtime-status-row">
           <span class="status-badge checking" id="runtime-status-badge">checking</span>
-          <span class="runtime-status-detail" id="runtime-status-detail">Confirming the Props API is reachable and preparing the verify flow.</span>
+          <span class="runtime-status-detail" id="runtime-status-detail">Confirming the Attestia API is reachable and preparing the verify flow.</span>
         </div>
       </div>
 
@@ -1686,7 +1686,7 @@
         <div class="journey-divider-copy">
           <div class="journey-divider-step">Step 4</div>
           <div class="journey-divider-title">Launch verification and move straight into the proof</div>
-          <div class="journey-divider-text">Once the runtime is ready, Props verifies the source, signs the certificate, and takes you to the certificate screen with the verifier as the next obvious move.</div>
+          <div class="journey-divider-text">Once the runtime is ready, Attestia verifies the source, signs the certificate, and takes you to the certificate screen with the verifier as the next obvious move.</div>
         </div>
         <div class="journey-divider-meta">Main demo action</div>
       </div>
@@ -1704,13 +1704,13 @@
   </div>
 
   <div class="insight">
-    <div class="insight-label">Props L1 — Oracle layer (section 3.1)</div>
+    <div class="insight-label">L1 — Oracle layer (Props paper section 3.1)</div>
     <div class="insight-text">The TEE reaches out to the licensing board's TLS endpoint directly. TLS fingerprint pinning inside the enclave ensures we are talking to the real registry — a fake cannot impersonate it. The architecture supports both public verification portals (NYSED) and credentialed login flows (the Chromium-in-TEE pattern handles any web authentication). The key property is <strong>data provenance</strong>: the credential facts came from the authoritative government source, were fetched inside the enclave, and were not fabricated or modified.</div>
   </div>
 </div>
 
 <!-- ============================================================
-     VIEW 2 — CERTIFICATE OUTPUT (Props L2 + L3 + L4)
+     VIEW 2 — CERTIFICATE OUTPUT (L2 + L3 + L4)
      ============================================================ -->
 <div class="view" id="view-certificate">
   <div class="view-header">
@@ -1721,7 +1721,7 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-label">Attestia trust stack</span>
       <span class="layer-summary-copy">This certificate already reflects the authenticated source, enclave processing, model provenance, and redaction filter.</span>
     </summary>
     <div class="layer-pill-list">
@@ -1736,7 +1736,7 @@
   <div class="browser">
     <div class="browser-bar">
       <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
-      <div class="url-bar"><span class="url-lock">🔒</span> <span id="cert-url-display">props.io/certificate/...</span></div>
+      <div class="url-bar"><span class="url-lock">🔒</span> <span id="cert-url-display">attestia.app/certificate/...</span></div>
     </div>
     <div class="page-content">
       <div class="section-tag">§ Props paper — section 2.4 data filter + section 3.2 pinned model + TEE attestation</div>
@@ -1799,11 +1799,11 @@
             <span class="attest-val" id="attest-enclave">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">model_digest (Props L3)</span>
+            <span class="attest-key">model_digest (L3)</span>
             <span class="attest-val" id="attest-model">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">extraction_method (Props L3)</span>
+            <span class="attest-key">extraction_method (L3)</span>
             <span class="attest-val" id="attest-extraction">—</span>
           </div>
           <div class="attest-row">
@@ -1844,7 +1844,7 @@
   </div>
 
   <div class="insight">
-    <div class="insight-label">Props L4 — Data redaction (section 2.4)</div>
+    <div class="insight-label">L4 — Data redaction (Props paper section 2.4)</div>
     <div class="insight-text">Filter f(X) = X' applied inside the enclave. The fields shown in red were present in the raw credential but stripped before the certificate was produced. Only the green fields exit the enclave. The TEE enforces this — not the frontend code.</div>
   </div>
 </div>
@@ -1861,7 +1861,7 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-label">Attestia trust stack</span>
       <span class="layer-summary-copy">Publish verified expertise without revealing who wrote it.</span>
     </summary>
     <div class="layer-pill-list">
@@ -1976,7 +1976,7 @@
 </div>
 
 <!-- ============================================================
-     VIEW 4 — PUBLIC VERIFIER (Props L2 + L3)
+     VIEW 4 — PUBLIC VERIFIER (L2 + L3)
      ============================================================ -->
 <div class="view" id="view-verifier">
   <div class="view-header">
@@ -1987,7 +1987,7 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-label">Attestia trust stack</span>
       <span class="layer-summary-copy">Check the proof, the source, and the on-chain record without revealing identity.</span>
     </summary>
     <div class="layer-pill-list">
@@ -2047,7 +2047,7 @@
 
     <div class="identity-note">
       <span class="lock-icon">🔒</span>
-      <span>Identity: not disclosed — cannot be recovered by anyone, including the Props server operator</span>
+      <span>Identity: not disclosed — cannot be recovered by anyone, including the Attestia server operator</span>
     </div>
 
     <details class="detail-panel" open>
@@ -2094,11 +2094,11 @@
             <span class="attest-val" id="verifier-enclave">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">model_digest (Props L3)</span>
+            <span class="attest-key">model_digest (L3)</span>
             <span class="attest-val" id="verifier-model">—</span>
           </div>
           <div class="attest-row">
-            <span class="attest-key">extraction_method (Props L3)</span>
+            <span class="attest-key">extraction_method (L3)</span>
             <span class="attest-val" id="verifier-extraction">—</span>
           </div>
           <div class="attest-row">
@@ -2130,7 +2130,7 @@
       <summary>
         <div>
           <div class="detail-panel-title">Independent TDX quote verification</div>
-          <div class="detail-panel-copy">How auditors can verify the embedded hardware quote without trusting the Props server.</div>
+          <div class="detail-panel-copy">How auditors can verify the embedded hardware quote without trusting the Attestia server.</div>
         </div>
       </summary>
       <div class="detail-panel-body">
@@ -2138,7 +2138,7 @@
           <div class="tech-card">
             <div class="tech-card-label" style="color:var(--blue);">Independent TDX quote verification</div>
             <div class="tech-card-body" style="margin-bottom:10px;">
-              The TDX attestation quote embedded in this certificate is a hardware-signed blob from Intel TDX. It can be independently verified without trusting the Props server:
+              The TDX attestation quote embedded in this certificate is a hardware-signed blob from Intel TDX. It can be independently verified without trusting the Attestia server:
             </div>
             <div class="tech-step-list">
               1. Download the certificate JSON (Screen 2)<br>
@@ -2160,7 +2160,7 @@
 </div>
 
 <!-- ============================================================
-     VIEW 5 — ADVERSARIAL DEFENSE (Props L5)
+     VIEW 5 — ADVERSARIAL DEFENSE (L5)
      ============================================================ -->
 <div class="view" id="view-attacks">
   <div class="view-header">
@@ -2171,8 +2171,8 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Props stack for this screen</span>
-      <span class="layer-summary-copy">This demo shows how different Props layers reject fake sources, forged data, and tampering.</span>
+      <span class="layer-label">Attestia trust stack</span>
+      <span class="layer-summary-copy">This demo shows how different Attestia layers reject fake sources, forged data, and tampering.</span>
     </summary>
     <div class="layer-pill-list">
       <span class="layer-pill on">L5 — Adversarial defense: live rejection demo on this screen</span>
@@ -2196,9 +2196,9 @@
       <div class="attack-desc">Attacker submits fake credential data directly, bypassing the oracle entirely. Finds a license template online and fills in "Cardiologist".</div>
       <div class="attack-meta">
         <strong>What breaks it</strong>
-        <span>Props L1 refuses any credential that did not come through the authenticated oracle path.</span>
+        <span>L1 refuses any credential that did not come through the authenticated oracle path.</span>
       </div>
-      <div class="attack-layer">Expected catch: Props L1 — not oracle-authenticated</div>
+      <div class="attack-layer">Expected catch: L1 — not oracle-authenticated</div>
       <button class="btn-attack" id="btn-attack-pdf" onclick="launchAttack('pdf', this)">
         Launch attack →
       </button>
@@ -2218,7 +2218,7 @@
         <strong>What breaks it</strong>
         <span>The enclave checks the pinned fingerprint of the real source, so a convincing lookalike still fails the oracle trust test.</span>
       </div>
-      <div class="attack-layer">Expected catch: Props L1 — TLS fingerprint mismatch</div>
+      <div class="attack-layer">Expected catch: L1 — TLS fingerprint mismatch</div>
       <button class="btn-attack" id="btn-attack-reg" onclick="launchAttack('fake_registry', this)">
         Launch attack →
       </button>
@@ -2238,7 +2238,7 @@
         <strong>What breaks it</strong>
         <span>The enclave detects that the authenticated oracle payload no longer matches the data that reaches attestation.</span>
       </div>
-      <div class="attack-layer">Expected catch: Props L2 — data hash mismatch in enclave</div>
+      <div class="attack-layer">Expected catch: L2 — data hash mismatch in enclave</div>
       <button class="btn-attack" id="btn-attack-tam" onclick="launchAttack('tampered', this)">
         Launch attack →
       </button>
@@ -2251,8 +2251,8 @@
   </div>
 
   <div class="insight">
-    <div class="insight-label">Props L5 — Adversarial defense (section 2.3)</div>
-    <div class="insight-text">There is no path to a valid Props certificate that does not go through the real authoritative source, unmodified, inside the enclave. The fraud fails architecturally. Not because of a filter. Because of the pipeline itself.</div>
+    <div class="insight-label">L5 — Adversarial defense (Props paper section 2.3)</div>
+    <div class="insight-text">There is no path to a valid Attestia certificate that does not go through the real authoritative source, unmodified, inside the enclave. The fraud fails architecturally. Not because of a filter. Because of the pipeline itself.</div>
   </div>
 </div>
 
@@ -2390,7 +2390,7 @@ function syncVerifyReadiness() {
     badge.className = 'status-badge checking';
     badge.textContent = 'checking';
     title.textContent = 'Checking backend reachability...';
-    detail.textContent = 'Confirming the Props API is reachable before allowing submission.';
+    detail.textContent = 'Confirming the Attestia API is reachable before allowing submission.';
     if (btn) {
       btn.disabled = true;
       btn.textContent = 'Checking backend...';
@@ -2402,7 +2402,7 @@ function syncVerifyReadiness() {
     badge.className = 'status-badge degraded';
     badge.textContent = 'offline';
     title.textContent = 'Backend unavailable';
-    detail.textContent = 'Could not reach the Props API, so submit stays blocked until the service responds.';
+    detail.textContent = 'Could not reach the Attestia API, so submit stays blocked until the service responds.';
     if (btn) {
       btn.disabled = true;
       btn.textContent = 'Backend unavailable';

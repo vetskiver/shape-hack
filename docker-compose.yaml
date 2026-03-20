@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
 
   props-oracle:
-    image: vetskiver/props-oracle:s32
+    image: vetskiver/props-oracle:s33
     platform: linux/amd64
     ports:
       - "8080:8080"
