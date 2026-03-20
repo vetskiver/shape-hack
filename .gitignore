@@ -7,6 +7,8 @@ __pycache__/
 *.pyo
 *.egg-info/
 venv/
+.venv/
+.venv311/
 scripts/venv/
 
 # Foundry build artifacts (stale — ABI is inlined in onchain.py)
@@ -14,6 +16,7 @@ out/
 
 # Cache
 cache/
+dist/
 
 # IDE
 .vscode/
@@ -24,3 +27,6 @@ cache/
 
 # Claude
 .claude/
+
+# Local browser tooling artifacts
+.playwright-cli/

@@ -27,7 +27,7 @@ B2B protocol licensing to media platforms, legal systems, and verification servi
 |-------|-------------|----------------|
 | **L1 Oracle** | Fetches data from authoritative TLS source inside TEE | Chromium scrapes NYSED registry (medical) or data.ny.gov Socrata API (attorney). TLS fingerprint pinned inside enclave. |
 | **L2 TEE + Attestation** | Hardware-isolated computation with cryptographic proof | Phala Cloud Intel TDX enclave. Ed25519 signing with enclave-derived deterministic key. TDX quote includes payload hash. |
-| **L3 Pinned Model** | Verifiable ML inference — model hash in attestation | Llama 3.2 3B via Ollama sidecar. Model digest from `/api/show` included in signed certificate. Hard-fails if LLM unavailable. |
+| **L3 Pinned Model** | Verifiable ML inference — model hash in attestation | `llama3.2:1b` via Ollama sidecar (current runtime default). Model digest from `/api/show` included in signed certificate. Hard-fails if LLM unavailable. |
 | **L4 Data Redaction** | User-controlled filter f(X) = X' (section 2.4) | Toggle switches on frontend control server-side redaction. Identity fields always stripped. Certificate reflects what the enclave actually removed. |
 | **L5 Adversarial Defense** | Architectural fraud rejection | `/api/forge` endpoint demonstrates three live attack rejections using real pipeline guard functions. |
 
@@ -43,7 +43,7 @@ Everything you need to run and test the oracle on your laptop.
 
 ### Prerequisites
 
-- Python 3.12 (the commands below use `python3.12` and `pip` pointing to 3.12)
+- Python 3.11 (matches the Docker image used for Phala deployment)
 - Node.js (needed for `playwright install`)
 - macOS or Linux
 
@@ -51,7 +51,7 @@ Everything you need to run and test the oracle on your laptop.
 
 **1. Install Python dependencies**
 ```bash
-pip install playwright python-dateutil cryptography fastapi uvicorn dstack-sdk
+python3.11 -m pip install -r requirements.txt
 ```
 
 **2. Install Chromium (used by the oracle to scrape the medical board)**
@@ -61,7 +61,7 @@ playwright install chromium
 
 **3. Fix SSL certificates (macOS only — do this once)**
 ```bash
-/Applications/Python\ 3.12/Install\ Certificates.command
+/Applications/Python\ 3.11/Install\ Certificates.command
 ```
 
 > If that path doesn't exist, find it with:
@@ -75,12 +75,12 @@ The oracle fetches real credential data from the NY State medical board.
 
 **Quick test with a known license number:**
 ```bash
-SKIP_TLS_VERIFY=true SKIP_ENCRYPTION=true TEST_LICENSE_NUMBER=209311 python3.12 app/oracle.py
+SKIP_TLS_VERIFY=true SKIP_ENCRYPTION=true TEST_LICENSE_NUMBER=209311 python3.11 app/oracle.py
 ```
 
 **Test with a different profession:**
 ```bash
-SKIP_TLS_VERIFY=true SKIP_ENCRYPTION=true TEST_LICENSE_NUMBER=053787 ORACLE_PROFESSION="Dentist (050)" python3.12 app/oracle.py
+SKIP_TLS_VERIFY=true SKIP_ENCRYPTION=true TEST_LICENSE_NUMBER=053787 ORACLE_PROFESSION="Dentist (050)" python3.11 app/oracle.py
 ```
 
 **Find your own license number to test with:**
@@ -123,7 +123,7 @@ SKIP_TLS_VERIFY=true SKIP_ENCRYPTION=true TEST_LICENSE_NUMBER=053787 ORACLE_PROF
 ## Running the FastAPI server locally
 
 ```bash
-SKIP_TLS_VERIFY=true SKIP_ENCRYPTION=true python3.12 app/main.py
+SKIP_TLS_VERIFY=true SKIP_ENCRYPTION=true python3.11 app/main.py
 ```
 
 Then visit http://localhost:8080/api/attestation — returns a mock attestation (real one only available inside Phala Cloud TEE).
@@ -160,7 +160,7 @@ phala login    # enter your API key from cloud.phala.com
 **Always build for `linux/amd64`** — Phala Cloud runs Intel TDX (x86_64). Building on Apple Silicon without this flag produces an `arm64`-only image that silently crashes on Phala.
 
 ```bash
-# Replace TAG with the session label, e.g. s4, s5, s6
+# Replace TAG with the release tag you are about to deploy, for example `s31`
 docker buildx build --platform linux/amd64 -t vetskiver/props-oracle:TAG --push .
 ```
 
@@ -189,7 +189,44 @@ curl https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phal
 | CVM ID | `6faa38933e632ca8dd2795fa68ad043c0bb6ad82` |
 | App ID | `6faa38933e632ca8dd2795fa68ad043c0bb6ad82` |
 | Public URL | `https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network` |
-| Docker image | `vetskiver/props-oracle:s4.1` (current) |
+| Docker image | `vetskiver/props-oracle:s31` |
+
+### Runtime envs currently used by the live CVM
+
+The live Phala deployment enables these additional runtime controls beyond the base local compose:
+
+- `PINNED_MODEL_DIGEST`
+- `SKIP_MODEL_PIN`
+- `SKIP_OLLAMA_WAIT`
+- `STRICT_MODE`
+- `REQUIRE_REAL_TEE`
+- `REQUIRE_LLM_EXTRACTION`
+- `REQUIRE_PINNED_MODEL`
+- `REQUIRE_ONCHAIN`
+
+These are sealed envs / allowed compose envs on Phala Cloud and are part of the live judging path.
+
+### Optional Intel Trust Authority appraisal
+
+The app already verifies TDX quotes structurally and can establish `trust_level=hardware`
+without Intel Trust Authority. If you also want the verifier payload to show a successful
+third-party Intel appraisal instead of a `401`/unconfigured message, set:
+
+- `INTEL_TRUST_AUTHORITY_API_KEY`
+- `INTEL_TRUST_AUTHORITY_URL` (optional override; defaults to Intel's appraisal endpoint)
+
+Important implementation note:
+
+- This must be an Intel Trust Authority **Attestation API key**, not an Admin API key.
+- The key is created and retrieved from the Intel Trust Authority portal.
+- If your tenant uses a non-default regional endpoint, set `INTEL_TRUST_AUTHORITY_URL`
+  to the correct appraisal base URL for that tenant instead of the default US endpoint.
+- After creating or rotating the key, redeploy the CVM with the new sealed env and allow
+  a short propagation window before re-testing the verifier path.
+
+Without the API key, `intel_details` will stay in the "unavailable / unauthorized" path,
+but the core judging-critical guarantees still work: real TDX quote, hardware trust, and
+live Base Sepolia storage.
 
 ### Checking logs when something breaks
 
@@ -209,12 +246,12 @@ phala cvms get 6faa38933e632ca8dd2795fa68ad043c0bb6ad82
 |---|---|---|
 | S1 | FastAPI app + dstack TDX attestation endpoint | ✅ done |
 | S2 | Oracle layer — Chromium scrapes NY medical board | ✅ done |
-| S3 | LLM extraction (Ollama Llama 3.2 3B) + redaction filter | ✅ done |
+| S3 | LLM extraction (Ollama `llama3.2:1b` default) + redaction filter | ✅ done |
 | S4 | Attestation output + full API + forge endpoint + Phala deploy | ✅ done |
 | S5 | Frontend connected to real backend (5-screen SPA) | ✅ done |
-| S6 | On-chain certificate registry (Ethereum Sepolia) | ✅ done |
+| S6 | On-chain certificate registry (Base Sepolia) | ✅ done |
 | S7 | Adversarial forge endpoint (real pipeline guards) | ✅ done |
-| S8 | Pluggable oracle (medical_board + employment) | ✅ done |
+| S8 | Pluggable oracle (medical_board + attorney) | ✅ done |
 | S9 | Full integration + bug fixing | ✅ done |
 
 ### How to verify S4 is fully working
@@ -222,7 +259,7 @@ phala cvms get 6faa38933e632ca8dd2795fa68ad043c0bb6ad82
 **1. Version check**
 ```bash
 curl https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-prod5.phala.network/
-# Expected: {"version": "0.4.0", "status": "running"}
+# Expected: service metadata with version `0.6.0` and `status` `ready_for_verify`
 ```
 
 **2. TDX attestation (Props L2)**
@@ -239,7 +276,8 @@ curl -X POST https://6faa38933e632ca8dd2795fa68ad043c0bb6ad82-8080.dstack-pha-pr
     "credentials": {"license_number": "209311", "profession": "Physician (060)"},
     "disclosed_fields": ["specialty", "years_active", "standing"]
   }'
-# Expected: certificate JSON with credential, model_hash, raw_fields_stripped, signature
+# Expected: NDJSON progress events ending in a certificate JSON with credential,
+# model_digest, raw_fields_stripped, signature, and on-chain metadata
 ```
 
 **4. Fetch certificate by ID (Screen 2)**

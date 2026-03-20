@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "rm -rf dist && mkdir -p dist/frontend && cp frontend/index.html dist/index.html && cp -R frontend/. dist/frontend/"
+  }
+}

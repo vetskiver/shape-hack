@@ -42,6 +42,8 @@ from extractor import extract_credential_facts, wait_for_ollama, OLLAMA_BASE_URL
 from redaction import apply_redaction_filter, get_all_disclosable_fields
 from attestation import generate_certificate, verify_certificate, verify_tdx_quote
 
+_SERVICE_VERSION = "0.6.0"
+
 
 # ---------------------------------------------------------------------------
 # Rate limiter — prevents abuse of expensive endpoints (oracle scrape, forge)
@@ -99,6 +101,152 @@ def _get_client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+def _utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+_READINESS = {
+    "status": "warming_up",
+    "verify_enabled": False,
+    "checks": {
+        "certificate_store": "pending",
+        "oracle_target": "pending",
+        "ollama": "pending",
+        "model": "pending",
+        "on_chain": "pending",
+        "hardware_attestation": "pending",
+    },
+    "blocking_issues": [],
+    "warnings": [],
+    "updated_at": _utcnow_iso(),
+}
+
+
+def _set_readiness(
+    status: str,
+    *,
+    verify_enabled: bool,
+    checks: Optional[dict[str, str]] = None,
+    blocking_issues: Optional[list[str]] = None,
+    warnings: Optional[list[str]] = None,
+) -> None:
+    """Update the global readiness state exposed to health/info and verify gating."""
+    _READINESS["status"] = status
+    _READINESS["verify_enabled"] = verify_enabled
+    if checks is not None:
+        _READINESS["checks"] = checks
+    if blocking_issues is not None:
+        _READINESS["blocking_issues"] = blocking_issues
+    if warnings is not None:
+        _READINESS["warnings"] = warnings
+    _READINESS["updated_at"] = _utcnow_iso()
+
+
+def _get_readiness() -> dict:
+    return {
+        "status": _READINESS["status"],
+        "verify_enabled": _READINESS["verify_enabled"],
+        "checks": dict(_READINESS["checks"]),
+        "blocking_issues": list(_READINESS["blocking_issues"]),
+        "warnings": list(_READINESS["warnings"]),
+        "updated_at": _READINESS["updated_at"],
+    }
+
+
+def _require_verify_ready() -> None:
+    readiness = _get_readiness()
+    if readiness["verify_enabled"]:
+        return
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "error": "Verification pipeline not ready",
+            "readiness": readiness,
+        },
+    )
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "false").lower() == "true"
+
+
+def _evaluate_onchain_readiness() -> tuple[str, Optional[str], Optional[str]]:
+    """
+    Decide whether on-chain persistence is a hard readiness requirement.
+
+    Production-style runs should not advertise ready-for-verify unless the
+    certificate can actually be persisted on-chain. Local-dev bypass modes keep
+    the current demo/dev escape hatches explicit.
+    """
+    local_dev_bypass = any(
+        _env_flag(name)
+        for name in ("SKIP_TLS_VERIFY", "SKIP_ENCRYPTION", "SKIP_OLLAMA_WAIT", "SKIP_MODEL_PIN")
+    )
+    if local_dev_bypass:
+        return (
+            "skipped_local_dev",
+            None,
+            "On-chain readiness is not enforced because local-dev bypass flags are enabled.",
+        )
+
+    contract_address = os.environ.get("CONTRACT_ADDRESS", "").strip()
+    private_key = os.environ.get("PRIVATE_KEY", "").strip()
+    if contract_address and private_key:
+        return ("ready", None, None)
+
+    missing = []
+    if not contract_address:
+        missing.append("CONTRACT_ADDRESS")
+    if not private_key:
+        missing.append("PRIVATE_KEY")
+    missing_str = " and ".join(missing)
+    verb = "is" if len(missing) == 1 else "are"
+    return (
+        "missing_config",
+        f"On-chain storage is required for ready_for_verify but {missing_str} {verb} not set.",
+        None,
+    )
+
+
+def _evaluate_hardware_readiness() -> tuple[str, Optional[str], Optional[str]]:
+    """
+    Decide whether the runtime can honestly claim hardware-backed trust.
+
+    For production-style runs we require dstack key derivation and TDX quote
+    generation to be available. Local-dev bypass modes keep simulated flows
+    explicit without pretending hardware trust is present.
+    """
+    local_dev_bypass = any(
+        _env_flag(name)
+        for name in ("SKIP_TLS_VERIFY", "SKIP_ENCRYPTION", "SKIP_OLLAMA_WAIT", "SKIP_MODEL_PIN")
+    )
+    if local_dev_bypass:
+        return (
+            "skipped_local_dev",
+            None,
+            "Hardware attestation readiness is not enforced because local-dev bypass flags are enabled.",
+        )
+
+    client = get_dstack_client()
+    if client is None:
+        return (
+            "simulated",
+            "Hardware-backed trust requires a real dstack/TDX environment, but no dstack client is available.",
+            None,
+        )
+
+    try:
+        client.get_key("/props-oracle", "enclave-check")
+        client.get_quote(b"\x00" * 32)
+        return ("ready", None, None)
+    except Exception as e:
+        return (
+            "error",
+            f"Hardware-backed trust requires enclave key derivation and TDX quote support: {e}",
+            None,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +482,24 @@ async def lifespan(app: FastAPI):
     # Props L3 — pull model and wait for Ollama before accepting requests
     # Skip wait if SKIP_OLLAMA_WAIT is set (for local dev without Ollama)
     skip_ollama = os.environ.get("SKIP_OLLAMA_WAIT", "false").lower() == "true"
+    readiness_checks = {
+        "certificate_store": "pending",
+        "oracle_target": "pending",
+        "ollama": "pending",
+        "model": "pending",
+        "on_chain": "pending",
+        "hardware_attestation": "pending",
+    }
+    blocking_issues: list[str] = []
+    warnings: list[str] = []
+
+    _set_readiness(
+        "warming_up",
+        verify_enabled=False,
+        checks=readiness_checks,
+        blocking_issues=blocking_issues,
+        warnings=warnings,
+    )
 
     # Production safety: detect real TDX enclave and refuse SKIP_OLLAMA_WAIT
     if skip_ollama:
@@ -352,6 +518,30 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass  # dstack not available — local dev, skip is fine
 
+    readiness_checks["certificate_store"] = "ready" if certificates._dir is not None else "memory_only"
+    if certificates._dir is None:
+        warnings.append(
+            "Certificate store is running memory-only; issued certificates will not survive container restarts."
+        )
+
+    readiness_checks["oracle_target"] = "ready" if ORACLE_TARGET in _ORACLE_REGISTRY else "invalid"
+    if ORACLE_TARGET not in _ORACLE_REGISTRY:
+        blocking_issues.append(f"Unsupported ORACLE_TARGET '{ORACLE_TARGET}'.")
+
+    on_chain_status, on_chain_blocker, on_chain_warning = _evaluate_onchain_readiness()
+    readiness_checks["on_chain"] = on_chain_status
+    if on_chain_blocker:
+        blocking_issues.append(on_chain_blocker)
+    if on_chain_warning:
+        warnings.append(on_chain_warning)
+
+    hardware_status, hardware_blocker, hardware_warning = _evaluate_hardware_readiness()
+    readiness_checks["hardware_attestation"] = hardware_status
+    if hardware_blocker:
+        blocking_issues.append(hardware_blocker)
+    if hardware_warning:
+        warnings.append(hardware_warning)
+
     # Props L1 — check TLS certificate expiry at startup (non-blocking)
     try:
         cert_info = get_tls_cert_expiry(NYSED_HOSTNAME)
@@ -359,10 +549,12 @@ async def lifespan(app: FastAPI):
               f"(expires {cert_info['not_after']})")
     except Exception as e:
         print(f"[startup] TLS cert expiry check failed (non-blocking): {e}")
+        warnings.append(f"TLS certificate expiry check failed: {e}")
 
     if not skip_ollama:
-        wait_for_ollama()
         try:
+            wait_for_ollama()
+            readiness_checks["ollama"] = "ready"
             async with httpx.AsyncClient(timeout=300.0) as client:
                 print(f"[startup] Pulling {MODEL_NAME} (no-op if already cached)...")
                 async with client.stream(
@@ -372,10 +564,29 @@ async def lifespan(app: FastAPI):
                 ) as resp:
                     resp.raise_for_status()
             print(f"[startup] {MODEL_NAME} ready")
+            readiness_checks["model"] = "ready"
         except Exception as e:
             print(f"[startup] Model pull warning: {e}")
+            if readiness_checks["ollama"] == "pending":
+                readiness_checks["ollama"] = "error"
+            readiness_checks["model"] = "error"
+            blocking_issues.append(f"Ollama/model startup failed: {e}")
     else:
+        readiness_checks["ollama"] = "skipped_local_dev"
+        readiness_checks["model"] = "skipped_local_dev"
+        warnings.append("SKIP_OLLAMA_WAIT=true: startup is bypassing Ollama/model readiness checks.")
         print("[startup] SKIP_OLLAMA_WAIT=true — skipping Ollama check and model pull")
+
+    readiness_status = "ready_for_verify"
+    if blocking_issues or warnings:
+        readiness_status = "degraded"
+    _set_readiness(
+        readiness_status,
+        verify_enabled=not blocking_issues,
+        checks=readiness_checks,
+        blocking_issues=blocking_issues,
+        warnings=warnings,
+    )
 
     # Periodic rate limiter cleanup task
     import asyncio
@@ -393,7 +604,7 @@ async def lifespan(app: FastAPI):
     cleanup_task.cancel()
 
 
-app = FastAPI(title="Props Oracle", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="Props Oracle", version=_SERVICE_VERSION, lifespan=lifespan)
 
 # CORS — allow same-origin (frontend served from this API) and the Phala Cloud
 # deployment URL. Not allow_origins=["*"] because this is a security-focused TEE
@@ -496,19 +707,29 @@ async def root():
 
 @app.get("/api/info")
 async def api_info():
+    readiness = _get_readiness()
     return {
         "service": "Props Anonymous Expert Oracle",
-        "version": "0.6.0",
-        "status": "running",
+        "version": _SERVICE_VERSION,
+        "status": readiness["status"],
+        "verify_enabled": readiness["verify_enabled"],
+        "readiness": readiness,
         "oracle_target": ORACLE_TARGET,
         "disclosable_fields": get_all_disclosable_fields(ORACLE_TARGET),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": _utcnow_iso(),
     }
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    readiness = _get_readiness()
+    payload = {
+        "status": "ok" if readiness["verify_enabled"] else readiness["status"],
+        "readiness": readiness,
+    }
+    if readiness["verify_enabled"]:
+        return payload
+    return JSONResponse(status_code=503, content=payload)
 
 
 @app.get("/api/tls-status")
@@ -885,6 +1106,8 @@ def verify_credential_endpoint(request: VerifyRequest, raw_request: Request):
             status_code=429,
             detail="Rate limit exceeded. The oracle scrape is resource-intensive. Please wait before retrying.",
         )
+
+    _require_verify_ready()
 
     # Input validation
     request.validate_inputs(ORACLE_TARGET)

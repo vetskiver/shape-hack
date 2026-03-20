@@ -3,19 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Props — Anonymous Expert Oracle</title>
+<title>Attestia — Verified Anonymous Expertise</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0a0a'/%3E%3Cpath d='M32 10l17 10v24L32 54 15 44V20z' fill='none' stroke='%2300c896' stroke-width='5' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap');
-
   :root {
     --bg: #0a0a0a;
     --surface: #111111;
     --surface2: #1a1a1a;
     --border: #2a2a2a;
     --border2: #333333;
-    --text: #f0f0f0;
-    --muted: #888888;
-    --faint: #444444;
+    --text: #fbfbfb;
+    --muted: #b3b3b3;
+    --faint: #5d5d5d;
     --green: #00c896;
     --green-dim: #003d2d;
     --green-mid: #00a07a;
@@ -23,8 +22,8 @@
     --red-dim: #2d0000;
     --blue: #4488ff;
     --amber: #ffaa00;
-    --mono: 'IBM Plex Mono', monospace;
-    --sans: 'Sora', sans-serif;
+    --mono: ui-monospace, 'SFMono-Regular', 'SF Mono', 'IBM Plex Mono', 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    --sans: 'Sora', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -100,11 +99,38 @@
 
   /* LAYER PILLS */
   .layer-row {
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    overflow: hidden;
+  }
+  .layer-row summary {
+    list-style: none;
+  }
+  .layer-row summary::-webkit-details-marker {
+    display: none;
+  }
+  .layer-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+  }
+  .layer-summary-copy {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+  }
+  .layer-pill-list {
     display: flex;
     gap: 6px;
-    margin-bottom: 1.5rem;
     flex-wrap: wrap;
     align-items: center;
+    padding: 0 14px 14px;
+    border-top: 1px solid var(--border);
   }
   .layer-pill {
     font-size: 10px;
@@ -116,7 +142,7 @@
   }
   .layer-pill.on { background: var(--green-dim); color: var(--green); border-color: var(--green-mid); }
   .layer-pill.off { background: var(--surface2); color: var(--faint); border-color: var(--border); }
-  .layer-label { font-size: 11px; color: var(--muted); }
+  .layer-label { font-size: 11px; color: var(--text); font-weight: 600; }
 
   /* SCREEN HEADER */
   .view-header { margin-bottom: 2rem; }
@@ -167,6 +193,82 @@
   }
   .url-lock { color: var(--green); font-size: 10px; }
   .page-content { padding: 2rem; }
+
+  /* MAIN FLOW HIERARCHY */
+  .flow-overview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .flow-stage {
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .flow-stage-num {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .flow-stage-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+    margin-bottom: 4px;
+  }
+  .flow-stage-copy {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .journey-divider {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 1.15rem 0 0.9rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .journey-divider:first-of-type {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+  .journey-divider-copy {
+    max-width: 520px;
+  }
+  .journey-divider-step {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .journey-divider-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.25px;
+    margin-bottom: 2px;
+  }
+  .journey-divider-text {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .journey-divider-meta {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--faint);
+    text-align: right;
+  }
 
   /* FORM ELEMENTS */
   .form-group { margin-bottom: 1.25rem; }
@@ -256,6 +358,12 @@
   .btn-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,200,150,0.25); }
   .btn-primary:active:not(:disabled) { transform: translateY(0); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary.btn-inline {
+    width: auto;
+    min-width: 220px;
+    margin-top: 0;
+    padding-inline: 18px;
+  }
   .btn-secondary {
     padding: 10px 16px;
     background: var(--surface2);
@@ -296,6 +404,81 @@
     gap: 5px;
   }
   .dot-green { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .runtime-status {
+    background: linear-gradient(180deg, rgba(26,26,26,0.96), rgba(17,17,17,0.96));
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 1rem;
+  }
+  .runtime-status-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .runtime-status-label {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .runtime-status-title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+  .runtime-status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .runtime-status-detail {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 10px;
+    font-family: var(--mono);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .status-badge.ready {
+    background: rgba(0,200,150,0.12);
+    color: var(--green);
+    border-color: var(--green-mid);
+  }
+  .status-badge.checking {
+    background: rgba(68,136,255,0.1);
+    color: var(--blue);
+    border-color: rgba(68,136,255,0.4);
+  }
+  .status-badge.degraded {
+    background: rgba(255,68,68,0.12);
+    color: var(--red);
+    border-color: #660000;
+  }
+  .status-badge.fallback {
+    background: rgba(255,170,0,0.1);
+    color: var(--amber);
+    border-color: rgba(255,170,0,0.35);
+  }
+  .runtime-refresh {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 11px;
+  }
 
   /* LOADING OVERLAY */
   .loading-overlay {
@@ -482,6 +665,7 @@
     gap: 10px;
     margin-top: 1rem;
     flex-wrap: wrap;
+    align-items: center;
   }
   .onchain-link {
     display: inline-flex;
@@ -505,6 +689,60 @@
     border-radius: 10px;
     overflow: hidden;
     margin-bottom: 1.25rem;
+  }
+  .article-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr);
+    gap: 14px;
+    margin-bottom: 1rem;
+  }
+  .article-stage-copy,
+  .article-stage-actions,
+  .embed-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .article-stage-kicker {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .article-stage-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+  }
+  .article-stage-text {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+  .article-stage-list {
+    display: grid;
+    gap: 8px;
+  }
+  .article-stage-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .article-stage-item strong {
+    display: block;
+    font-size: 11px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .article-stage-item span {
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.55;
   }
   .article-body { padding: 2rem; }
   .article-category {
@@ -586,6 +824,25 @@
     background: none;
     border: none;
   }
+  .embed-card-copy {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .embed-shell {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+  }
+  .embed-shell-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--faint);
+    margin-bottom: 6px;
+  }
 
   /* VERIFIER VIEW */
   @keyframes verify-glow {
@@ -641,6 +898,204 @@
   .verify-sub { font-size: 11px; font-family: var(--mono); margin-top: 6px; }
   .verify-status.valid .verify-sub { color: var(--green-mid); }
   .verify-status.invalid .verify-sub { color: #cc4444; }
+  .verifier-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 1.2rem;
+  }
+  .verifier-summary-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .verifier-summary-kicker,
+  .attack-card-kicker {
+    font-size: 10px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .verifier-summary-kicker { color: var(--green); }
+  .verifier-summary-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .verifier-summary-copy {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .detail-panel {
+    margin-top: 12px;
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    background: var(--surface2);
+    overflow: hidden;
+  }
+  .detail-panel summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .detail-panel summary::-webkit-details-marker {
+    display: none;
+  }
+  .detail-panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .detail-panel-copy {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .detail-panel-body {
+    padding: 0 14px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .trust-banner {
+    border: 1px solid;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12px;
+  }
+  .trust-banner.hardware {
+    background: rgba(52,199,89,0.08);
+    border-color: rgba(52,199,89,0.25);
+    color: var(--green);
+  }
+  .trust-banner.simulated {
+    background: rgba(255,149,0,0.08);
+    border-color: rgba(255,149,0,0.25);
+    color: var(--amber);
+  }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .detail-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .detail-card-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    margin-bottom: 4px;
+  }
+  .detail-card-copy {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .detail-card-meta {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--faint);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+  .tech-card {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 1.1rem 1.15rem;
+  }
+  .tech-card.valid {
+    background: var(--green-dim);
+    border-color: var(--green-mid);
+  }
+  .tech-card.invalid {
+    background: var(--red-dim);
+    border-color: #660000;
+  }
+  .tech-card-label {
+    font-size: 10px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .tech-card.valid .tech-card-label { color: var(--green); }
+  .tech-card.invalid .tech-card-label { color: var(--red); }
+  .tech-card-body {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+  .tech-step-list {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--faint);
+    line-height: 2;
+  }
+  .tech-meta {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--faint);
+    margin-top: 10px;
+    line-height: 1.8;
+    border-top: 1px solid var(--border2);
+    padding-top: 10px;
+    word-break: break-word;
+  }
+  .tech-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .mini-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--blue);
+    font-family: var(--mono);
+    font-weight: 600;
+    background: rgba(68,136,255,0.1);
+    border: 1px solid rgba(68,136,255,0.3);
+    border-radius: 5px;
+    padding: 6px 12px;
+    text-decoration: none;
+  }
+  .mini-link.success {
+    color: var(--green);
+    background: rgba(0,200,150,0.1);
+    border-color: var(--green-mid);
+  }
+  .measurements-grid {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border2);
+  }
+  .measurement-row {
+    display: flex;
+    gap: 8px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--faint);
+    line-height: 2;
+    word-break: break-all;
+  }
+  .measurement-row strong {
+    color: var(--muted);
+    min-width: 50px;
+    font-weight: 400;
+  }
 
   .identity-note {
     background: var(--surface2);
@@ -665,6 +1120,23 @@
     margin-bottom: 1.5rem;
   }
   @media (max-width: 700px) { .attack-grid { grid-template-columns: 1fr; } }
+  .attack-intro {
+    background: linear-gradient(180deg, rgba(255,68,68,0.08), rgba(255,255,255,0));
+    border: 1px solid rgba(255,68,68,0.2);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 1rem;
+  }
+  .attack-intro-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .attack-intro-copy {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
   .attack-panel {
     background: var(--surface);
     border: 1px solid var(--border2);
@@ -693,6 +1165,24 @@
     font-family: var(--mono);
     color: var(--amber);
     margin-bottom: 8px;
+  }
+  .attack-meta {
+    margin: 10px 0 4px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+  }
+  .attack-meta strong {
+    display: block;
+    font-size: 11px;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .attack-meta span {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.55;
   }
 
   .terminal-box {
@@ -804,6 +1294,86 @@
     font-family: var(--mono);
     font-size: 12px;
   }
+  .success-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(220px, 0.7fr);
+    gap: 14px;
+    background:
+      radial-gradient(circle at top right, rgba(0,200,150,0.12), transparent 42%),
+      linear-gradient(180deg, rgba(0,200,150,0.05), rgba(255,255,255,0));
+    border: 1px solid rgba(0,160,122,0.35);
+    border-radius: 14px;
+    padding: 1.1rem 1.15rem;
+    margin-bottom: 1.1rem;
+  }
+  .success-summary-kicker {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 7px;
+  }
+  .success-summary-title {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.35px;
+    margin-bottom: 6px;
+  }
+  .success-summary-copy {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.65;
+    max-width: 480px;
+  }
+  .success-summary-list {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+  .success-summary-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .success-summary-item strong {
+    display: block;
+    font-size: 11px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .success-summary-item span {
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  @media (max-width: 760px) {
+    .flow-overview,
+    .success-summary,
+    .verifier-summary-grid,
+    .article-stage,
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+    .journey-divider {
+      flex-direction: column;
+    }
+    .journey-divider-meta {
+      text-align: left;
+    }
+    .layer-summary {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .layer-summary-copy {
+      text-align: left;
+    }
+    .btn-primary.btn-inline {
+      width: 100%;
+    }
+  }
 </style>
 </head>
 <body>
@@ -842,7 +1412,7 @@
 
 <!-- NAVIGATION -->
 <nav class="nav">
-  <div class="nav-logo" onclick="navigate('verify')">⬡ <span>Props</span> — Anonymous Expert Oracle</div>
+  <div class="nav-logo" onclick="navigate('verify')">⬡ <span>Attestia</span> — Powered by Props</div>
   <div class="nav-tabs">
     <button class="tab" id="nav-verify" onclick="navigate('verify')">
       01 Verify <span class="lbadge">L1 L4</span>
@@ -873,14 +1443,19 @@
     <div class="view-sub">Your credentials are verified inside a hardware-isolated enclave. Your identity never leaves your device.</div>
   </div>
 
-  <div class="layer-row">
-    <span class="layer-label">All 5 Props layers active:</span>
-    <span class="layer-pill on" id="verify-l1-pill">L1 — Oracle: authenticating against NY medical board</span>
-    <span class="layer-pill on">L4 — Redaction: you control filter f(X) = X'</span>
-    <span class="layer-pill on">L2 — TEE: Phala Cloud TDX enforces privacy</span>
-    <span class="layer-pill on">L3 — Pinned model: Llama 3.2 3B, hash attested</span>
-    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
-  </div>
+  <details class="layer-row">
+    <summary class="layer-summary">
+      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-summary-copy">L1-L5 map the trust chain: source, enclave, model, redaction, and adversarial defense.</span>
+    </summary>
+    <div class="layer-pill-list">
+      <span class="layer-pill on" id="verify-l1-pill">L1 — Oracle: authenticating against NY medical board</span>
+      <span class="layer-pill on">L4 — Redaction: you control filter f(X) = X'</span>
+      <span class="layer-pill on">L2 — TEE: Phala Cloud TDX enforces privacy</span>
+      <span class="layer-pill on">L3 — Pinned model: current model hash is attested</span>
+      <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
+    </div>
+  </details>
 
   <div class="browser">
     <div class="browser-bar">
@@ -889,6 +1464,33 @@
     </div>
     <div class="page-content">
       <div class="section-tag">§ Props paper — section 3.1 oracle + section 2.4 redaction</div>
+
+      <div class="flow-overview">
+        <div class="flow-stage">
+          <div class="flow-stage-num">01 · authenticate</div>
+          <div class="flow-stage-title">Choose a live registry source</div>
+          <div class="flow-stage-copy">The enclave talks to the real medical board or attorney registry. No uploaded credential file is trusted.</div>
+        </div>
+        <div class="flow-stage">
+          <div class="flow-stage-num">02 · redact</div>
+          <div class="flow-stage-title">Keep only the facts you want public</div>
+          <div class="flow-stage-copy">Identity stays inside the enclave. Only the fields you leave on will appear in the final certificate.</div>
+        </div>
+        <div class="flow-stage">
+          <div class="flow-stage-num">03 · publish</div>
+          <div class="flow-stage-title">Land on a shareable proof</div>
+          <div class="flow-stage-copy">After verification, you get a signed certificate with a verifier link and on-chain proof when available.</div>
+        </div>
+      </div>
+
+      <div class="journey-divider">
+        <div class="journey-divider-copy">
+          <div class="journey-divider-step">Step 1</div>
+          <div class="journey-divider-title">Pick the oracle path for this demo run</div>
+          <div class="journey-divider-text">This sets the authoritative source the enclave will authenticate against before it extracts and redacts anything.</div>
+        </div>
+        <div class="journey-divider-meta">Main source selector</div>
+      </div>
 
       <!-- S8: Oracle source selector — same pipeline, different data source -->
       <div class="form-group">
@@ -900,6 +1502,15 @@
           <option value="medical_board" selected>NY State Medical Board — nysed.gov/op</option>
           <option value="attorney">NY Attorney Registry — data.ny.gov</option>
         </select>
+      </div>
+
+      <div class="journey-divider">
+        <div class="journey-divider-copy">
+          <div class="journey-divider-step">Step 2</div>
+          <div class="journey-divider-title">Enter the credential to verify</div>
+          <div class="journey-divider-text">The demo values are already filled in. When the enclave key is available, these credentials are encrypted in the browser before submission.</div>
+        </div>
+        <div class="journey-divider-meta">Encrypted at submission</div>
       </div>
 
       <!-- MEDICAL BOARD FIELDS -->
@@ -937,6 +1548,15 @@
           </div>
           <input class="form-input" id="inp-registration" value="1190404" placeholder="e.g. 1190404">
         </div>
+      </div>
+
+      <div class="journey-divider">
+        <div class="journey-divider-copy">
+          <div class="journey-divider-step">Step 3</div>
+          <div class="journey-divider-title">Choose the proof you want to disclose</div>
+          <div class="journey-divider-text">This is the core product moment: credibility leaves the enclave, identity does not. Keep the list short for a cleaner demo outcome.</div>
+        </div>
+        <div class="journey-divider-meta">Props L4 filter</div>
       </div>
 
       <div class="toggle-section-title">Choose what to disclose — section 2.4 filter f(X) = X'</div>
@@ -1048,6 +1668,29 @@
         </div>
       </div>
 
+      <div class="runtime-status" id="runtime-status">
+        <div class="runtime-status-head">
+          <div>
+            <div class="runtime-status-label">Runtime readiness</div>
+            <div class="runtime-status-title" id="runtime-status-title">Checking backend reachability...</div>
+          </div>
+          <button class="btn-secondary runtime-refresh" type="button" onclick="refreshRuntimeStatus(true)">Refresh status</button>
+        </div>
+        <div class="runtime-status-row">
+          <span class="status-badge checking" id="runtime-status-badge">checking</span>
+          <span class="runtime-status-detail" id="runtime-status-detail">Confirming the Props API is reachable and preparing the verify flow.</span>
+        </div>
+      </div>
+
+      <div class="journey-divider">
+        <div class="journey-divider-copy">
+          <div class="journey-divider-step">Step 4</div>
+          <div class="journey-divider-title">Launch verification and move straight into the proof</div>
+          <div class="journey-divider-text">Once the runtime is ready, Props verifies the source, signs the certificate, and takes you to the certificate screen with the verifier as the next obvious move.</div>
+        </div>
+        <div class="journey-divider-meta">Main demo action</div>
+      </div>
+
       <button class="btn-primary" id="submit-btn" onclick="submitVerify()" disabled>
         Loading encryption key...
       </button>
@@ -1056,6 +1699,7 @@
         <span class="dot-green" id="encrypt-status-dot"></span>
         <span id="encrypt-status-text">loading encryption key from enclave...</span>
       </div>
+      <div class="journey-divider-text" style="margin-top:10px;">Best demo path: keep the prefilled values, disclose only the high-signal facts, then use the public verifier page as the next screen.</div>
     </div>
   </div>
 
@@ -1075,14 +1719,19 @@
     <div class="view-sub">Identity stripped inside the enclave. Crossed fields were never disclosed. Attach this certificate to anything you publish.</div>
   </div>
 
-  <div class="layer-row">
-    <span class="layer-label">All 5 Props layers active:</span>
-    <span class="layer-pill on">L2 — TEE: computation happened inside Phala Cloud TDX</span>
-    <span class="layer-pill on">L3 — Pinned model: model hash in attestation block below</span>
-    <span class="layer-pill on">L4 — Redaction: stripped fields shown here, applied in enclave</span>
-    <span class="layer-pill on">L1 — Oracle: data fetched from authoritative NYSED registry</span>
-    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
-  </div>
+  <details class="layer-row">
+    <summary class="layer-summary">
+      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-summary-copy">This certificate already reflects the authenticated source, enclave processing, model provenance, and redaction filter.</span>
+    </summary>
+    <div class="layer-pill-list">
+      <span class="layer-pill on">L2 — TEE: computation happened inside Phala Cloud TDX</span>
+      <span class="layer-pill on">L3 — Pinned model: model hash in attestation block below</span>
+      <span class="layer-pill on">L4 — Redaction: stripped fields shown here, applied in enclave</span>
+      <span class="layer-pill on">L1 — Oracle: data fetched from authoritative NYSED registry</span>
+      <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
+    </div>
+  </details>
 
   <div class="browser">
     <div class="browser-bar">
@@ -1098,6 +1747,28 @@
       </div>
 
       <div id="cert-content" style="display:none;">
+        <div class="success-summary">
+          <div>
+            <div class="success-summary-kicker">Success state</div>
+            <div class="success-summary-title">Your anonymous credential is ready to share</div>
+            <div class="success-summary-copy">Identity has already been stripped inside the enclave. The next job is distribution: open the verifier, copy the link, or keep the JSON as an auditable artifact.</div>
+          </div>
+          <div class="success-summary-list">
+            <div class="success-summary-item">
+              <strong>Identity removed</strong>
+              <span>Only the disclosed proof fields remain in this payload.</span>
+            </div>
+            <div class="success-summary-item">
+              <strong>Signature attached</strong>
+              <span>The certificate is signed and linked to the attestation block below.</span>
+            </div>
+            <div class="success-summary-item">
+              <strong>Verifier comes next</strong>
+              <span>The public verify page is the cleanest follow-on step in the demo.</span>
+            </div>
+          </div>
+        </div>
+
         <div class="cert-card">
           <div class="cert-header">
             <div class="cert-icon">✦</div>
@@ -1160,7 +1831,7 @@
 
         <div class="cert-actions" id="cert-actions">
           <button class="btn-secondary" id="copy-btn" onclick="copyVerifyLink()">Copy verify link</button>
-          <button class="btn-secondary" onclick="openVerifyTab()">Open verify page →</button>
+          <button class="btn-primary btn-inline" onclick="openVerifyTab()">Open verify page →</button>
           <button class="btn-secondary" onclick="downloadCertJSON()">Download JSON</button>
           <button class="btn-secondary" onclick="navigate('article')">View published article →</button>
         </div>
@@ -1185,17 +1856,22 @@
   <div class="view-header">
     <div class="view-num">Screen 03 — Published article</div>
     <div class="view-title">What real-world usage looks like</div>
-    <div class="view-sub">The expert publishes their article. The Props badge attaches the verified credential. Any reader can click verify.</div>
+    <div class="view-sub">The expert publishes their article. The Attestia badge carries the verified credential. Any reader can click verify.</div>
   </div>
 
-  <div class="layer-row">
-    <span class="layer-label">All 5 Props layers active:</span>
-    <span class="layer-pill on">L2 — TEE: attestation badge attached to this article</span>
-    <span class="layer-pill on">L3 — Pinned model: credential provenance auditable by anyone</span>
-    <span class="layer-pill on">L1 — Oracle: data came from real NYSED registry</span>
-    <span class="layer-pill on">L4 — Redaction: identity is nowhere in this article</span>
-    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
-  </div>
+  <details class="layer-row">
+    <summary class="layer-summary">
+      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-summary-copy">Publish verified expertise without revealing who wrote it.</span>
+    </summary>
+    <div class="layer-pill-list">
+      <span class="layer-pill on">L2 — TEE: attestation badge attached to this article</span>
+      <span class="layer-pill on">L3 — Pinned model: credential provenance auditable by anyone</span>
+      <span class="layer-pill on">L1 — Oracle: data came from real NYSED registry</span>
+      <span class="layer-pill on">L4 — Redaction: identity is nowhere in this article</span>
+      <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
+    </div>
+  </details>
 
   <!-- Article mode toggle — example story vs custom article -->
   <div style="display:flex;gap:8px;margin-bottom:1rem;">
@@ -1206,14 +1882,39 @@
   <!-- Custom article input (hidden by default) -->
   <div id="article-custom-input" style="display:none;margin-bottom:1rem;">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;">
-      <div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Write your article — the Props badge attaches automatically</div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Write your article — the Attestia badge attaches automatically</div>
       <div class="form-group" style="margin-bottom:10px;">
         <input class="form-input" id="custom-article-title" placeholder="Article headline..." style="font-size:16px;font-weight:600;">
       </div>
       <div class="form-group" style="margin-bottom:10px;">
         <textarea class="form-input" id="custom-article-body" placeholder="Write your article here. Your verified credential badge will be attached automatically..." rows="6" style="resize:vertical;line-height:1.8;"></textarea>
       </div>
-      <button class="btn-secondary" onclick="applyCustomArticle()" style="font-size:11px;">Preview with Props badge →</button>
+      <button class="btn-secondary" onclick="applyCustomArticle()" style="font-size:11px;">Preview with Attestia badge →</button>
+    </div>
+  </div>
+
+  <div class="article-stage">
+    <div class="article-stage-copy">
+      <div class="article-stage-kicker">Publish with proof attached</div>
+      <div class="article-stage-title">A reader sees the post. The proof stays one click away.</div>
+      <div class="article-stage-text">Your article can travel like any normal link or screenshot, while the badge and verifier page carry the trust signal in the background.</div>
+    </div>
+    <div class="article-stage-actions">
+      <div class="article-stage-kicker">What a reader sees</div>
+      <div class="article-stage-list">
+        <div class="article-stage-item">
+          <strong>Verified facts</strong>
+          <span>The badge shows exactly what was checked, not a vague trust label.</span>
+        </div>
+        <div class="article-stage-item">
+          <strong>One obvious next step</strong>
+          <span>Anyone can open the verifier page and inspect the proof for themselves.</span>
+        </div>
+        <div class="article-stage-item">
+          <strong>Identity stays hidden</strong>
+          <span>The post carries credibility without exposing the author.</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1224,7 +1925,7 @@
       <div class="article-byline">
         <div class="badge-verified" id="article-badge">
           <span class="badge-shield">⬡</span>
-          Props · Attested
+          Attestia · Attested
           <span class="badge-sep">|</span>
           <span id="article-badge-facts">Board-certified cardiologist
           <span class="badge-sep">·</span>
@@ -1246,31 +1947,31 @@
     </div>
     <div class="proof-bar">
       <div class="proof-text">
-        <strong>⬡ Props · Attested — credential verified inside Intel TDX enclave</strong>
+        <strong>⬡ Attestia · Attested — credential verified inside Intel TDX enclave</strong>
         <span id="article-proof-facts">Board-certified cardiologist · 17 years practice · In good standing</span><span id="article-proof-onchain"></span> · Identity not disclosed · Cannot be recovered by anyone
       </div>
       <button class="proof-link" id="article-verify-btn" onclick="goToVerifier()">Verify on-chain →</button>
     </div>
   </div>
 
-  <!-- EMBEDDABLE BADGE — shows platform integrators how to embed Props verification -->
+  <!-- EMBEDDABLE BADGE — shows platform integrators how to embed Attestia verification -->
   <div id="article-embed-section" style="margin-top:1.5rem;">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;">
-      <div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Embeddable verification badge</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px;">
-        Platform integrators (news sites, social media, forums) can embed this badge in published content. Clicking it opens the trustless verifier — no Props account needed.
+    <div class="embed-card">
+      <div class="article-stage-kicker">Embeddable verification badge</div>
+      <div class="embed-card-copy">
+        Copy this HTML into a website, CMS block, or custom post template. Readers will see a small Attestia badge that opens the verifier page in a new tab.
       </div>
-      <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;margin-bottom:10px;">
-        <div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-bottom:6px;">HTML embed code:</div>
+      <div class="embed-shell">
+        <div class="embed-shell-label">Paste this into an HTML-friendly editor:</div>
         <code id="article-embed-code" style="font-size:10px;font-family:var(--mono);color:var(--muted);word-break:break-all;line-height:1.6;display:block;"></code>
       </div>
-      <button class="btn-secondary" onclick="copyEmbedCode()" style="font-size:11px;">Copy embed code</button>
+      <button class="btn-secondary" onclick="copyEmbedCode()" style="font-size:11px;">Copy badge HTML</button>
     </div>
   </div>
 
   <div class="insight">
     <div class="insight-label">The core insight</div>
-    <div class="insight-text">Anonymity without credibility is useless. Credentials without anonymity destroy safety. This article exists because Props gives both simultaneously — for the first time.</div>
+    <div class="insight-text">Anonymous speech only works when readers can trust it. Attestia keeps the identity hidden while making the credential easy to verify.</div>
   </div>
 </div>
 
@@ -1284,14 +1985,19 @@
     <div class="view-sub">Anyone can verify this credential. No login required. The identity of the expert cannot be recovered by anyone.</div>
   </div>
 
-  <div class="layer-row">
-    <span class="layer-label">All 5 Props layers active:</span>
-    <span class="layer-pill on">L2 — TEE: signature verified against enclave public key</span>
-    <span class="layer-pill on">L3 — Pinned model: model hash auditable by anyone</span>
-    <span class="layer-pill on">L1 — Oracle: credential came from real NYSED registry</span>
-    <span class="layer-pill on">L4 — Redaction: only consented fields visible here</span>
-    <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
-  </div>
+  <details class="layer-row">
+    <summary class="layer-summary">
+      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-summary-copy">Check the proof, the source, and the on-chain record without revealing identity.</span>
+    </summary>
+    <div class="layer-pill-list">
+      <span class="layer-pill on">L2 — TEE: signature verified against enclave public key</span>
+      <span class="layer-pill on">L3 — Pinned model: model hash auditable by anyone</span>
+      <span class="layer-pill on">L1 — Oracle: credential came from real NYSED registry</span>
+      <span class="layer-pill on">L4 — Redaction: only consented fields visible here</span>
+      <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
+    </div>
+  </details>
 
   <div id="verifier-loading" class="loading-placeholder">
     <div class="spinner"></div>
@@ -1304,9 +2010,27 @@
       <div>
         <div class="verify-title" id="verify-title">Credential verified</div>
         <div class="verify-badge-line" id="verify-badge-line">
-          <span>⬡</span> Props · Attested
+          <span>⬡</span> Attestia · Attested
         </div>
         <div class="verify-sub" id="verify-sub">Signature valid · Intel TDX enclave authenticated · Identity not disclosed</div>
+      </div>
+    </div>
+
+    <div class="verifier-summary-grid">
+      <div class="verifier-summary-card">
+        <div class="verifier-summary-kicker">Verdict</div>
+        <div class="verifier-summary-title">This proof is safe to evaluate publicly</div>
+        <div class="verifier-summary-copy">Readers can assess the disclosed facts and the signature status without ever learning who the expert is.</div>
+      </div>
+      <div class="verifier-summary-card">
+        <div class="verifier-summary-kicker">What is visible</div>
+        <div class="verifier-summary-title">Only consented facts</div>
+        <div class="verifier-summary-copy">Everything below this line is the redacted output that left the enclave. Identity fields were never included.</div>
+      </div>
+      <div class="verifier-summary-card">
+        <div class="verifier-summary-kicker">How to read this</div>
+        <div class="verifier-summary-title">Trust result first, evidence second</div>
+        <div class="verifier-summary-copy">Start with the verdict, then expand the technical panels only if you want the deeper attestation and on-chain proof trail.</div>
       </div>
     </div>
 
@@ -1326,77 +2050,110 @@
       <span>Identity: not disclosed — cannot be recovered by anyone, including the Props server operator</span>
     </div>
 
-    <!-- WHY YOU CAN TRUST THIS — plain-English for non-technical judges -->
-    <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;margin:1.25rem 0;">
-      <div style="font-size:10px;font-family:var(--mono);color:var(--green);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Why you can trust this</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.8;">
-        This credential was verified inside an <strong style="color:var(--text);">Intel TDX hardware enclave</strong> — a sealed computer that nobody can look inside, not even the server operator. Three independent guarantees protect the result:
+    <details class="detail-panel" open>
+      <summary>
+        <div>
+          <div class="detail-panel-title">Why you can trust this</div>
+          <div class="detail-panel-copy">A plain-English breakdown of where this proof came from and why it holds up.</div>
+        </div>
+      </summary>
+      <div class="detail-panel-body">
+        <div class="article-stage-text" style="margin-bottom:12px;">
+          This credential was verified inside an <strong style="color:var(--text);">Intel TDX hardware enclave</strong> — a sealed computer that nobody can look inside, not even the server operator. Three independent guarantees protect the result:
+        </div>
+        <div class="detail-grid">
+          <div class="detail-card">
+            <div class="detail-card-label">1. Source is real</div>
+            <div class="detail-card-copy">Data was fetched directly from the authoritative government registry inside the enclave via TLS with a pinned certificate fingerprint — not from a document the user uploaded.</div>
+            <div id="verifier-oracle-auth" class="detail-card-meta"></div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-card-label">2. Nothing was changed</div>
+            <div class="detail-card-copy">The certificate is signed with a key that only exists inside the enclave. If anyone modifies the data after issuance, the signature breaks.</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-card-label">3. Proof lives on-chain</div>
+            <div class="detail-card-copy">The certificate hash is stored on Base (Coinbase L2) permanently. Even if this server disappears, the proof survives on the blockchain.</div>
+          </div>
+        </div>
       </div>
-      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-bottom:4px;">1. Source is real</div>
-          <div style="font-size:11px;color:var(--muted);line-height:1.6;">Data was fetched directly from the authoritative government registry inside the enclave via TLS with a pinned certificate fingerprint — not from a document the user uploaded.</div>
-          <div id="verifier-oracle-auth" style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:6px;line-height:1.5;"></div>
-        </div>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-bottom:4px;">2. Nothing was changed</div>
-          <div style="font-size:11px;color:var(--muted);line-height:1.6;">The certificate is signed with a key that only exists inside the enclave. If anyone modifies the data after issuance, the signature breaks.</div>
-        </div>
-        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:10px;font-family:var(--mono);color:var(--green);margin-bottom:4px;">3. Proof lives on-chain</div>
-          <div style="font-size:11px;color:var(--muted);line-height:1.6;">The certificate hash is stored on Base (Coinbase L2) permanently. Even if this server disappears, the proof survives on the blockchain.</div>
-        </div>
-      </div>
-    </div>
+    </details>
 
-    <div class="attest-block">
-      <div class="attest-title">Enclave provenance</div>
-      <div class="attest-row">
-        <span class="attest-key">payload_hash (in TDX quote)</span>
-        <span class="attest-val" id="verifier-enclave">—</span>
-      </div>
-      <div class="attest-row">
-        <span class="attest-key">model_digest (Props L3)</span>
-        <span class="attest-val" id="verifier-model">—</span>
-      </div>
-      <div class="attest-row">
-        <span class="attest-key">extraction_method (Props L3)</span>
-        <span class="attest-val" id="verifier-extraction">—</span>
-      </div>
-      <div class="attest-row">
-        <span class="attest-key">timestamp</span>
-        <span class="attest-val" id="verifier-ts">—</span>
-      </div>
-      <div class="attest-row">
-        <span class="attest-key">enclave_type</span>
-        <span class="attest-val" id="verifier-enclave-type">—</span>
-      </div>
-    </div>
-
-    <!-- Browser-side Ed25519 signature verification — TRUSTLESS, zero server trust -->
-    <div id="verifier-sig-browser" style="margin-top:12px;"></div>
-
-    <div id="verifier-onchain" style="margin-top:12px;"></div>
-
-    <!-- TDX Quote Independent Verification -->
-    <div id="verifier-tdx-verify" style="display:none;margin-top:12px;">
-      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">
-        <div style="font-size:10px;font-family:var(--mono);color:var(--blue);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Independent TDX quote verification</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:10px;">
-          The TDX attestation quote embedded in this certificate is a hardware-signed blob from Intel TDX. It can be independently verified without trusting the Props server:
+    <details class="detail-panel">
+      <summary>
+        <div>
+          <div class="detail-panel-title">Enclave provenance</div>
+          <div class="detail-panel-copy">Model digest, payload hash, timestamp, and enclave type for the issued certificate.</div>
         </div>
-        <div style="font-size:11px;font-family:var(--mono);color:var(--faint);line-height:2;">
-          1. Download the certificate JSON (Screen 2)<br>
-          2. Extract the <span style="color:var(--text);">tdx_quote</span> field<br>
-          3. Verify via Intel Trust Authority API or <span style="color:var(--text);">dstack-sdk verify-quote</span><br>
-          4. Confirm <span style="color:var(--text);">report_data</span> matches <span style="color:var(--text);">payload_hash</span> in the certificate
-        </div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-          <a href="https://docs.trustauthority.intel.com/main/articles/integrate-overview.html" target="_blank" style="font-size:10px;color:var(--blue);font-family:var(--mono);font-weight:600;background:rgba(68,136,255,0.1);border:1px solid rgba(68,136,255,0.3);border-radius:5px;padding:6px 12px;text-decoration:none;">Intel Trust Authority docs →</a>
-          <a href="https://github.com/Dstack-TEE/dstack" target="_blank" style="font-size:10px;color:var(--blue);font-family:var(--mono);font-weight:600;background:rgba(68,136,255,0.1);border:1px solid rgba(68,136,255,0.3);border-radius:5px;padding:6px 12px;text-decoration:none;">dstack verification tools →</a>
+      </summary>
+      <div class="detail-panel-body">
+        <div class="attest-block" style="margin-top:0;">
+          <div class="attest-title">Enclave provenance</div>
+          <div class="attest-row">
+            <span class="attest-key">payload_hash (in TDX quote)</span>
+            <span class="attest-val" id="verifier-enclave">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">model_digest (Props L3)</span>
+            <span class="attest-val" id="verifier-model">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">extraction_method (Props L3)</span>
+            <span class="attest-val" id="verifier-extraction">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">timestamp</span>
+            <span class="attest-val" id="verifier-ts">—</span>
+          </div>
+          <div class="attest-row">
+            <span class="attest-key">enclave_type</span>
+            <span class="attest-val" id="verifier-enclave-type">—</span>
+          </div>
         </div>
       </div>
-    </div>
+    </details>
+
+    <details class="detail-panel">
+      <summary>
+        <div>
+          <div class="detail-panel-title">Cryptographic verification</div>
+          <div class="detail-panel-copy">Browser-native Ed25519 and on-chain checks for readers who want the raw proof path.</div>
+        </div>
+      </summary>
+      <div class="detail-panel-body">
+        <div id="verifier-sig-browser" style="margin-top:12px;"></div>
+        <div id="verifier-onchain" style="margin-top:12px;"></div>
+      </div>
+    </details>
+
+    <details class="detail-panel">
+      <summary>
+        <div>
+          <div class="detail-panel-title">Independent TDX quote verification</div>
+          <div class="detail-panel-copy">How auditors can verify the embedded hardware quote without trusting the Props server.</div>
+        </div>
+      </summary>
+      <div class="detail-panel-body">
+        <div id="verifier-tdx-verify" style="display:none;margin-top:12px;">
+          <div class="tech-card">
+            <div class="tech-card-label" style="color:var(--blue);">Independent TDX quote verification</div>
+            <div class="tech-card-body" style="margin-bottom:10px;">
+              The TDX attestation quote embedded in this certificate is a hardware-signed blob from Intel TDX. It can be independently verified without trusting the Props server:
+            </div>
+            <div class="tech-step-list">
+              1. Download the certificate JSON (Screen 2)<br>
+              2. Extract the <span style="color:var(--text);">tdx_quote</span> field<br>
+              3. Verify via Intel Trust Authority API or <span style="color:var(--text);">dstack-sdk verify-quote</span><br>
+              4. Confirm <span style="color:var(--text);">report_data</span> matches <span style="color:var(--text);">payload_hash</span> in the certificate
+            </div>
+            <div class="tech-actions">
+              <a href="https://docs.trustauthority.intel.com/main/articles/integrate-overview.html" target="_blank" class="mini-link">Intel Trust Authority docs →</a>
+              <a href="https://github.com/Dstack-TEE/dstack" target="_blank" class="mini-link">dstack verification tools →</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
   </div>
 
   <div id="verifier-error" style="display:none;"></div>
@@ -1412,13 +2169,23 @@
     <div class="view-sub">Every attack is rejected by the pipeline itself — not a filter, not a rule. The architecture makes fraud impossible.</div>
   </div>
 
-  <div class="layer-row">
-    <span class="layer-label">All 5 Props layers active:</span>
-    <span class="layer-pill on">L5 — Adversarial defense: live rejection demo on this screen</span>
-    <span class="layer-pill on">L1 — Oracle: catches forged + fake registry attacks</span>
-    <span class="layer-pill on">L2 — TEE: catches tampered data attacks</span>
-    <span class="layer-pill on">L3 — Pinned model: model hash is tamper-evident</span>
-    <span class="layer-pill on">L4 — Redaction: only oracle-verified fields can exit</span>
+  <details class="layer-row">
+    <summary class="layer-summary">
+      <span class="layer-label">Props stack for this screen</span>
+      <span class="layer-summary-copy">This demo shows how different Props layers reject fake sources, forged data, and tampering.</span>
+    </summary>
+    <div class="layer-pill-list">
+      <span class="layer-pill on">L5 — Adversarial defense: live rejection demo on this screen</span>
+      <span class="layer-pill on">L1 — Oracle: catches forged + fake registry attacks</span>
+      <span class="layer-pill on">L2 — TEE: catches tampered data attacks</span>
+      <span class="layer-pill on">L3 — Pinned model: model hash is tamper-evident</span>
+      <span class="layer-pill on">L4 — Redaction: only oracle-verified fields can exit</span>
+    </div>
+  </details>
+
+  <div class="attack-intro">
+    <div class="attack-intro-title">Why fake credentials fail here</div>
+    <div class="attack-intro-copy">These attacks fail because the pipeline only accepts authenticated source data, detects tampering, and signs the final result.</div>
   </div>
 
   <div class="attack-grid">
@@ -1427,6 +2194,10 @@
       <div class="attack-num">Attack 01</div>
       <div class="attack-title">Forged PDF</div>
       <div class="attack-desc">Attacker submits fake credential data directly, bypassing the oracle entirely. Finds a license template online and fills in "Cardiologist".</div>
+      <div class="attack-meta">
+        <strong>What breaks it</strong>
+        <span>Props L1 refuses any credential that did not come through the authenticated oracle path.</span>
+      </div>
       <div class="attack-layer">Expected catch: Props L1 — not oracle-authenticated</div>
       <button class="btn-attack" id="btn-attack-pdf" onclick="launchAttack('pdf', this)">
         Launch attack →
@@ -1443,6 +2214,10 @@
       <div class="attack-num">Attack 02</div>
       <div class="attack-title">Fake Registry</div>
       <div class="attack-desc">Attacker sets up a fake medical board website with a real TLS certificate and tries to point the oracle at it.</div>
+      <div class="attack-meta">
+        <strong>What breaks it</strong>
+        <span>The enclave checks the pinned fingerprint of the real source, so a convincing lookalike still fails the oracle trust test.</span>
+      </div>
       <div class="attack-layer">Expected catch: Props L1 — TLS fingerprint mismatch</div>
       <button class="btn-attack" id="btn-attack-reg" onclick="launchAttack('fake_registry', this)">
         Launch attack →
@@ -1459,6 +2234,10 @@
       <div class="attack-num">Attack 03</div>
       <div class="attack-title">Tampered Data</div>
       <div class="attack-desc">Attacker has a real GP license and intercepts the data stream between the oracle and the enclave to swap "general practitioner" for "cardiologist".</div>
+      <div class="attack-meta">
+        <strong>What breaks it</strong>
+        <span>The enclave detects that the authenticated oracle payload no longer matches the data that reaches attestation.</span>
+      </div>
       <div class="attack-layer">Expected catch: Props L2 — data hash mismatch in enclave</div>
       <button class="btn-attack" id="btn-attack-tam" onclick="launchAttack('tampered', this)">
         Launch attack →
@@ -1494,6 +2273,17 @@ const BACKEND = (() => {
 let currentCertId = null;
 let currentCertData = null;
 let enclavePublicKey = null; // CryptoKey for RSA-OAEP encryption
+let backendRuntime = {
+  checked: false,
+  reachable: false,
+  info: null,
+  error: null,
+};
+let transportReadiness = {
+  state: 'loading', // loading | encrypted | fallback
+  detail: 'loading encryption key from enclave...',
+};
+let verifyRequestInFlight = false;
 
 // ---------------------------------------------------------------------------
 // RSA ENCRYPTION — Props security: credentials encrypted before leaving device
@@ -1514,18 +2304,18 @@ async function loadEnclavePublicKey() {
       false, ['encrypt']
     );
     console.log('[props] Enclave RSA public key loaded — credentials will be encrypted');
-    const dot = document.getElementById('encrypt-status-dot');
-    const txt = document.getElementById('encrypt-status-text');
-    if (dot) dot.style.background = 'var(--green)';
-    if (txt) txt.textContent = 'RSA-OAEP encryption active · credentials encrypted before leaving your device';
-    // Enable submit button now that encryption is ready
-    const btn = document.getElementById('submit-btn');
-    if (btn) { btn.disabled = false; btn.textContent = 'Generate anonymous certificate →'; }
+    transportReadiness = {
+      state: 'encrypted',
+      detail: 'RSA-OAEP encryption active · credentials encrypted before leaving your device',
+    };
+    syncVerifyReadiness();
   } catch (e) {
     console.warn('[props] Could not load enclave public key, will send plaintext:', e);
-    // Still enable the button — plaintext fallback for local dev
-    const btn = document.getElementById('submit-btn');
-    if (btn) { btn.disabled = false; btn.textContent = 'Generate anonymous certificate →'; }
+    transportReadiness = {
+      state: 'fallback',
+      detail: 'Enclave public key unavailable · plaintext fallback enabled for local dev only',
+    };
+    syncVerifyReadiness();
   }
 }
 
@@ -1544,7 +2334,173 @@ async function encryptCredentials(credentialsObj) {
   }
 }
 
-// Load key on page init
+function getSelectedOracleLabel() {
+  const source = getOracleSource();
+  return source === 'attorney' ? 'attorney oracle' : 'medical board oracle';
+}
+
+function getBackendReadinessSummary() {
+  const info = backendRuntime.info || {};
+  const readiness = info.readiness || {};
+  const hasReadinessContract = typeof info.verify_enabled === 'boolean';
+  return {
+    hasReadinessContract,
+    verifyEnabled: hasReadinessContract ? Boolean(info.verify_enabled) : true,
+    status: readiness.status || info.status || 'unknown',
+    blockingIssues: Array.isArray(readiness.blocking_issues) ? readiness.blocking_issues : [],
+    warnings: Array.isArray(readiness.warnings) ? readiness.warnings : [],
+  };
+}
+
+function formatBackendReadinessDetail(summary, selectedOracle, serverOracle) {
+  const firstBlocking = summary.blockingIssues[0];
+  const firstWarning = summary.warnings[0];
+  const sourceDetail = ' Selected source: ' + selectedOracle + '. Server default: ' + serverOracle + '.';
+
+  if (firstBlocking) {
+    return firstBlocking + sourceDetail;
+  }
+  if (firstWarning) {
+    return firstWarning + sourceDetail;
+  }
+  return 'The backend is reporting "' + summary.status + '" and is not yet allowing verification.' + sourceDetail;
+}
+
+function syncVerifyReadiness() {
+  if (!verifyRequestInFlight) {
+    hideLoadingOverlay();
+  }
+  const dot = document.getElementById('encrypt-status-dot');
+  const txt = document.getElementById('encrypt-status-text');
+  const btn = document.getElementById('submit-btn');
+  const badge = document.getElementById('runtime-status-badge');
+  const title = document.getElementById('runtime-status-title');
+  const detail = document.getElementById('runtime-status-detail');
+
+  if (dot) {
+    dot.style.background = transportReadiness.state === 'encrypted'
+      ? 'var(--green)'
+      : transportReadiness.state === 'fallback'
+        ? 'var(--amber)'
+        : 'var(--faint)';
+  }
+  if (txt) txt.textContent = transportReadiness.detail;
+
+  if (!backendRuntime.checked) {
+    badge.className = 'status-badge checking';
+    badge.textContent = 'checking';
+    title.textContent = 'Checking backend reachability...';
+    detail.textContent = 'Confirming the Props API is reachable before allowing submission.';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Checking backend...';
+    }
+    return;
+  }
+
+  if (!backendRuntime.reachable) {
+    badge.className = 'status-badge degraded';
+    badge.textContent = 'offline';
+    title.textContent = 'Backend unavailable';
+    detail.textContent = 'Could not reach the Props API, so submit stays blocked until the service responds.';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Backend unavailable';
+    }
+    return;
+  }
+
+  if (transportReadiness.state === 'loading') {
+    badge.className = 'status-badge checking';
+    badge.textContent = 'preparing';
+    title.textContent = 'Backend reachable — preparing secure submission';
+    detail.textContent = 'Service is online. Waiting for the enclave public key before enabling the verify flow.';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Preparing secure submission...';
+    }
+    return;
+  }
+
+  const serverOracle = backendRuntime.info && backendRuntime.info.oracle_target
+    ? backendRuntime.info.oracle_target.replace('_', ' ')
+    : 'unknown';
+  const selectedOracle = getSelectedOracleLabel();
+  const backendReadiness = getBackendReadinessSummary();
+
+  if (backendReadiness.hasReadinessContract && !backendReadiness.verifyEnabled) {
+    badge.className = 'status-badge degraded';
+    badge.textContent = backendReadiness.status === 'warming_up' ? 'warming-up' : backendReadiness.status;
+    title.textContent = backendReadiness.status === 'warming_up'
+      ? 'Backend is still preparing verification'
+      : 'Backend is not ready to verify';
+    detail.textContent = formatBackendReadinessDetail(backendReadiness, selectedOracle, serverOracle);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Verification unavailable';
+    }
+    return;
+  }
+
+  if (transportReadiness.state === 'fallback') {
+    badge.className = 'status-badge fallback';
+    badge.textContent = 'local-dev';
+    title.textContent = 'Backend reachable — plaintext fallback active';
+    detail.textContent = 'API is online, but the enclave public key was unavailable. Submission is allowed for local development only and will not be browser-encrypted. ' +
+      (backendReadiness.warnings[0] ? backendReadiness.warnings[0] + ' ' : '') +
+      'Selected source: ' + selectedOracle + '. Server default: ' + serverOracle + '.';
+  } else {
+    badge.className = 'status-badge ready';
+    badge.textContent = 'ready';
+    title.textContent = 'Ready to verify';
+    detail.textContent = 'API is reachable and secure browser encryption is active. ' +
+      (backendReadiness.warnings[0] ? backendReadiness.warnings[0] + ' ' : '') +
+      'Selected source: ' + selectedOracle + '. Server default: ' + serverOracle + '.';
+  }
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Generate anonymous certificate →';
+  }
+}
+
+async function refreshRuntimeStatus(showToastOnSuccess = false) {
+  backendRuntime = {
+    checked: false,
+    reachable: false,
+    info: null,
+    error: null,
+  };
+  syncVerifyReadiness();
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(BACKEND + '/api/info', { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const info = await res.json();
+    backendRuntime = {
+      checked: true,
+      reachable: true,
+      info,
+      error: null,
+    };
+    syncVerifyReadiness();
+    if (showToastOnSuccess) showToast('Backend status refreshed');
+  } catch (err) {
+    backendRuntime = {
+      checked: true,
+      reachable: false,
+      info: null,
+      error: err.message,
+    };
+    syncVerifyReadiness();
+  }
+}
+
+// Load runtime status and key on page init
+refreshRuntimeStatus();
 loadEnclavePublicKey();
 
 // ============================================================
@@ -1631,6 +2587,7 @@ function switchOracleSource() {
       ? 'L1 — Oracle: fetching from NY Attorney Registry (data.ny.gov)'
       : 'L1 — Oracle: authenticating against NY medical board';
   }
+  syncVerifyReadiness();
 }
 
 function toggleField(el) {
@@ -1653,6 +2610,20 @@ function getOracleSource() {
 }
 
 async function submitVerify() {
+  const backendReadiness = getBackendReadinessSummary();
+  if (backendRuntime.checked && backendRuntime.reachable && backendReadiness.hasReadinessContract && !backendReadiness.verifyEnabled) {
+    document.getElementById('submit-error').innerHTML = errorBox(
+      formatBackendReadinessDetail(
+        backendReadiness,
+        getSelectedOracleLabel(),
+        backendRuntime.info && backendRuntime.info.oracle_target
+          ? backendRuntime.info.oracle_target.replace('_', ' ')
+          : 'unknown'
+      )
+    );
+    return;
+  }
+
   const oracleSource = getOracleSource();
   const disclosedFields = getDisclosedFields();
 
@@ -1679,6 +2650,7 @@ async function submitVerify() {
   document.getElementById('submit-error').innerHTML = '';
   document.getElementById('submit-btn').disabled = true;
 
+  verifyRequestInFlight = true;
   showLoadingOverlay();
 
   // Props security: encrypt credentials with enclave's RSA public key
@@ -1705,6 +2677,7 @@ async function submitVerify() {
     clearTimeout(timer);
 
     if (!res.ok) {
+      verifyRequestInFlight = false;
       hideLoadingOverlay();
       const text = await res.text();
       document.getElementById('submit-error').innerHTML = errorBox('API error ' + res.status + ': ' + text);
@@ -1756,6 +2729,7 @@ async function submitVerify() {
               _onChainWarning = evt.on_chain_warning;
             }
           } else if (evt.status === 'error') {
+            verifyRequestInFlight = false;
             hideLoadingOverlay();
             document.getElementById('submit-error').innerHTML = errorBox(evt.error || 'Pipeline error');
             document.getElementById('submit-btn').disabled = false;
@@ -1767,6 +2741,7 @@ async function submitVerify() {
       }
     }
 
+    verifyRequestInFlight = false;
     hideLoadingOverlay();
 
     if (finalCertificate) {
@@ -1782,6 +2757,7 @@ async function submitVerify() {
     }
 
   } catch (err) {
+    verifyRequestInFlight = false;
     hideLoadingOverlay();
     const msg = err.name === 'AbortError'
       ? 'Request timed out after 120 seconds. The enclave may be busy — try again.'
@@ -2077,7 +3053,7 @@ function updateArticleWithCertData(data) {
       'style="display:inline-flex;align-items:center;gap:6px;background:#003d2d;color:#00c896;' +
       'font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;border:1px solid #00a07a;' +
       'font-family:monospace;text-decoration:none;">' +
-      '\u2b21 Props \u00b7 Attested | ' + factsText + '</a>';
+      '\u2b21 Attestia \u00b7 Attested | ' + factsText + '</a>';
     embedEl.textContent = raw;
     embedEl.dataset.raw = raw;
   }
@@ -2228,10 +3204,10 @@ function renderVerifier(data) {
     statusBlock.parentNode.insertBefore(trustBanner, statusBlock.nextSibling);
   }
   if (trustLevel === 'hardware') {
-    trustBanner.style.cssText = 'background:rgba(52,199,89,0.08);border:1px solid rgba(52,199,89,0.25);border-radius:10px;padding:12px 16px;margin:12px 0;font-size:12px;color:var(--green);';
+    trustBanner.className = 'trust-banner hardware';
     trustBanner.innerHTML = '<strong>Trust level: HARDWARE</strong> — ' + escapeHtml(data.trust_detail || 'Real Intel TDX enclave with hardware attestation');
   } else {
-    trustBanner.style.cssText = 'background:rgba(255,149,0,0.08);border:1px solid rgba(255,149,0,0.25);border-radius:10px;padding:12px 16px;margin:12px 0;font-size:12px;color:var(--amber);';
+    trustBanner.className = 'trust-banner simulated';
     trustBanner.innerHTML = '<strong>Trust level: SIMULATED</strong> — ' + escapeHtml(data.trust_detail || 'Signature is valid but no hardware enclave backs this certificate');
   }
 
@@ -2276,9 +3252,9 @@ function renderVerifier(data) {
   const sigContainer = document.getElementById('verifier-sig-browser');
   if (sigContainer && cert.signing_key_public && cert.signature) {
     sigContainer.innerHTML =
-      '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
-        '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">🔐 Browser-native Ed25519 signature verification — zero server trust</div>' +
-        '<div id="sig-steps" style="font-size:11px;font-family:var(--mono);color:var(--faint);line-height:2;">' +
+      '<div class="tech-card">' +
+        '<div class="tech-card-label" style="color:var(--amber);">🔐 Browser-native Ed25519 signature verification — zero server trust</div>' +
+        '<div id="sig-steps" class="tech-step-list">' +
           '<div id="sig-step-1" style="color:var(--amber);">① Rebuilding canonical payload from certificate...</div>' +
           '<div id="sig-step-2" style="color:var(--faint);">② Importing Ed25519 public key via WebCrypto</div>' +
           '<div id="sig-step-3" style="color:var(--faint);">③ Verifying Ed25519 signature (browser-native)</div>' +
@@ -2336,22 +3312,16 @@ function renderVerifier(data) {
         const container = sigContainer.querySelector('div');
         if (container) {
           if (sigValid) {
-            container.style.background = 'var(--green-dim)';
-            container.style.borderColor = 'var(--green-mid)';
-            const label = container.querySelector('div');
-            if (label) label.style.color = 'var(--green)';
+            container.className = 'tech-card valid';
           } else {
-            container.style.background = 'var(--red-dim)';
-            container.style.borderColor = '#660000';
-            const label = container.querySelector('div');
-            if (label) label.style.color = 'var(--red)';
+            container.className = 'tech-card invalid';
           }
         }
 
         // Add detail block
         const detailDiv = document.createElement('div');
         detailDiv.innerHTML =
-          '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:10px;line-height:1.8;border-top:1px solid var(--border2);padding-top:10px;">' +
+          '<div class="tech-meta">' +
             'algorithm: Ed25519 (WebCrypto API — browser-native)<br>' +
             'public_key: ' + escapeHtml(cert.signing_key_public) + '<br>' +
             'signature: ' + escapeHtml(cert.signature.slice(0, 32)) + '...<br>' +
@@ -2384,7 +3354,7 @@ function renderVerifier(data) {
         if (container) {
           const fallbackDiv = document.createElement('div');
           fallbackDiv.innerHTML =
-            '<div style="font-size:11px;color:var(--muted);line-height:1.6;">' +
+            '<div class="tech-card-body">' +
               'Browser-native Ed25519 verification unavailable: ' + escapeHtml(err.message) + '<br>' +
               '<span style="color:var(--faint);">Falling back to server-side verification (result above). ' +
               'Ed25519 WebCrypto requires Chrome 113+, Firefox 129+, or Safari 17+.</span>' +
@@ -2405,9 +3375,9 @@ function renderVerifier(data) {
   if (certIdStr && payloadHash) {
     // Show step-by-step progress while browser verifies on-chain
     onchainContainer.innerHTML =
-      '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
-        '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">⛓ Browser-native on-chain verification — zero server trust</div>' +
-        '<div id="onchain-steps" style="font-size:11px;font-family:var(--mono);color:var(--faint);line-height:2;">' +
+      '<div class="tech-card">' +
+        '<div class="tech-card-label" style="color:var(--amber);">⛓ Browser-native on-chain verification — zero server trust</div>' +
+        '<div id="onchain-steps" class="tech-step-list">' +
           '<div id="oc-step-1" style="color:var(--amber);">① Computing keccak256(certificate_id)...</div>' +
           '<div id="oc-step-2" style="color:var(--faint);">② ABI-encoding verify(bytes32) call</div>' +
           '<div id="oc-step-3" style="color:var(--faint);">③ eth_call → sepolia.base.org (browser → chain)</div>' +
@@ -2469,20 +3439,16 @@ function renderVerifier(data) {
         // Replace spinner with final result
         const explorer = 'https://sepolia.basescan.org';
         const txLink = onchain
-          ? '<a href="' + escapeHtml(explorer + '/tx/' + onchain) + '" target="_blank" style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:var(--green);font-family:var(--mono);background:rgba(0,200,150,0.1);border:1px solid var(--green-mid);border-radius:6px;padding:9px 16px;text-decoration:none;font-weight:600;margin-top:10px;">⛓ View transaction on Basescan →</a>'
+          ? '<a href="' + escapeHtml(explorer + '/tx/' + onchain) + '" target="_blank" class="mini-link success" style="margin-top:10px;">⛓ View transaction on Basescan →</a>'
           : '';
 
         // Update container border color based on result
         const container = onchainContainer.querySelector('div');
         if (container) {
           if (isStored && matches) {
-            container.style.background = 'var(--green-dim)';
-            container.style.borderColor = 'var(--green-mid)';
-            const label = container.querySelector('div');
-            if (label) label.style.color = 'var(--green)';
+            container.className = 'tech-card valid';
           } else if (isStored) {
-            container.style.background = 'var(--red-dim)';
-            container.style.borderColor = '#660000';
+            container.className = 'tech-card invalid';
           }
         }
 
@@ -2493,7 +3459,7 @@ function renderVerifier(data) {
         // Add hash comparison details and tx link
         const detailDiv = document.createElement('div');
         detailDiv.innerHTML =
-          '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:10px;line-height:1.8;border-top:1px solid var(--border2);padding-top:10px;">' +
+          '<div class="tech-meta">' +
             'contract: ' + escapeHtml(ONCHAIN_CONTRACT) + '<br>' +
             'chain: Base Sepolia (84532)<br>' +
             'stored:&nbsp;&nbsp; 0x' + escapeHtml(storedB32) + '<br>' +
@@ -2504,9 +3470,9 @@ function renderVerifier(data) {
 
       } catch (err) {
         onchainContainer.innerHTML =
-          '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
-            '<div style="font-size:10px;font-family:var(--mono);color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">⛓ On-chain verification</div>' +
-            '<div style="font-size:12px;color:var(--muted);">Browser-native verification failed: ' + escapeHtml(err.message) + '</div>' +
+          '<div class="tech-card">' +
+            '<div class="tech-card-label" style="color:var(--amber);">⛓ On-chain verification</div>' +
+            '<div class="tech-card-body">Browser-native verification failed: ' + escapeHtml(err.message) + '</div>' +
           '</div>';
       }
     })();
@@ -2537,8 +3503,8 @@ function renderVerifier(data) {
       const statusColor = reportMatch ? 'var(--green)' : 'var(--red)';
       const statusIcon = reportMatch ? '✓' : '✗';
 
-      let html = '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">';
-      html += '<div style="font-size:10px;font-family:var(--mono);color:var(--blue);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Intel TDX Hardware Attestation — Live Verification</div>';
+      let html = '<div class="tech-card">';
+      html += '<div class="tech-card-label" style="color:var(--blue);">Intel TDX Hardware Attestation — Live Verification</div>';
 
       // Step 1: Structural verification
       html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;">';
@@ -2575,26 +3541,25 @@ function renderVerifier(data) {
       // Enclave measurements (MRTD, RTMR0-3) — lets auditors verify enclave identity
       const measurements = tdx.measurements || data.tdx_measurements;
       if (measurements && measurements.mrtd) {
-        html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2);">';
-        html += '<div style="font-size:10px;font-family:var(--mono);color:var(--blue);margin-bottom:8px;font-weight:600;">Enclave Identity Measurements</div>';
-        html += '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);line-height:2;word-break:break-all;">';
-        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">MRTD</span><span title="Hash of TD initial contents — the enclave measurement. Same code = same MRTD.">' + escapeHtml(measurements.mrtd) + '</span></div>';
-        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR0</span><span title="Firmware/BIOS measurement">' + escapeHtml(measurements.rtmr0) + '</span></div>';
-        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR1</span><span title="OS/kernel measurement">' + escapeHtml(measurements.rtmr1) + '</span></div>';
-        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR2</span><span title="Application measurement (Docker image)">' + escapeHtml(measurements.rtmr2) + '</span></div>';
-        html += '<div style="display:flex;gap:8px;"><span style="color:var(--muted);min-width:50px;">RTMR3</span><span title="Runtime measurement">' + escapeHtml(measurements.rtmr3) + '</span></div>';
+        html += '<div class="measurements-grid">';
+        html += '<div class="tech-card-label" style="color:var(--blue);margin-bottom:8px;">Enclave Identity Measurements</div>';
+        html += '<div class="measurement-row"><strong>MRTD</strong><span title="Hash of TD initial contents — the enclave measurement. Same code = same MRTD.">' + escapeHtml(measurements.mrtd) + '</span></div>';
+        html += '<div class="measurement-row"><strong>RTMR0</strong><span title="Firmware/BIOS measurement">' + escapeHtml(measurements.rtmr0) + '</span></div>';
+        html += '<div class="measurement-row"><strong>RTMR1</strong><span title="OS/kernel measurement">' + escapeHtml(measurements.rtmr1) + '</span></div>';
+        html += '<div class="measurement-row"><strong>RTMR2</strong><span title="Application measurement (Docker image)">' + escapeHtml(measurements.rtmr2) + '</span></div>';
+        html += '<div class="measurement-row"><strong>RTMR3</strong><span title="Runtime measurement">' + escapeHtml(measurements.rtmr3) + '</span></div>';
         html += '</div>';
         html += '<div style="font-size:10px;color:var(--faint);margin-top:6px;line-height:1.5;">MRTD uniquely identifies the enclave build. Same code produces the same MRTD — any modification changes the measurement. Auditors can compare this against a known-good build.</div>';
         html += '</div>';
       }
 
       // Verification method badge
-      html += '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">';
-      html += '<span style="font-size:10px;font-family:var(--mono);background:rgba(68,136,255,0.1);border:1px solid rgba(68,136,255,0.3);border-radius:5px;padding:4px 10px;color:var(--blue);">method: ' + escapeHtml(method) + '</span>';
+      html += '<div class="tech-actions">';
+      html += '<span class="mini-link" style="cursor:default;text-decoration:none;">method: ' + escapeHtml(method) + '</span>';
       if (tdx.sdk_verified) {
-        html += '<span style="font-size:10px;font-family:var(--mono);background:rgba(0,200,150,0.1);border:1px solid var(--green-mid);border-radius:5px;padding:4px 10px;color:var(--green);">dstack-sdk: verified</span>';
+        html += '<span class="mini-link success" style="cursor:default;text-decoration:none;">dstack-sdk: verified</span>';
       }
-      html += '<a href="https://docs.trustauthority.intel.com/main/articles/integrate-overview.html" target="_blank" style="font-size:10px;color:var(--blue);font-family:var(--mono);font-weight:600;background:rgba(68,136,255,0.1);border:1px solid rgba(68,136,255,0.3);border-radius:5px;padding:4px 10px;text-decoration:none;">Intel docs →</a>';
+      html += '<a href="https://docs.trustauthority.intel.com/main/articles/integrate-overview.html" target="_blank" class="mini-link">Intel docs →</a>';
       html += '</div>';
       html += '</div>';
 
@@ -2602,9 +3567,9 @@ function renderVerifier(data) {
     } else {
       // No TDX quote — simulated enclave
       tdxContainer.innerHTML =
-        '<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:1.25rem;">' +
-          '<div style="font-size:10px;font-family:var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Intel TDX Hardware Attestation</div>' +
-          '<div style="font-size:12px;color:var(--muted);line-height:1.5;">No TDX quote present — this certificate was issued from a simulated enclave (local dev). In production on Phala Cloud, a real Intel TDX hardware quote is embedded and verified.</div>' +
+        '<div class="tech-card">' +
+          '<div class="tech-card-label">Intel TDX Hardware Attestation</div>' +
+          '<div class="tech-card-body">No TDX quote present — this certificate was issued from a simulated enclave (local dev). In production on Phala Cloud, a real Intel TDX hardware quote is embedded and verified.</div>' +
         '</div>';
       tdxContainer.style.display = 'block';
     }

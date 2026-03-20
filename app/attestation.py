@@ -361,14 +361,23 @@ def verify_tdx_quote(certificate: dict) -> dict:
     result["intel_details"] = None
     try:
         import httpx
+        import os
         quote_b64 = __import__("base64").b64encode(quote_bytes).decode()
-        intel_resp = httpx.post(
+        ita_url = os.environ.get(
+            "INTEL_TRUST_AUTHORITY_URL",
             "https://api.trustauthority.intel.com/appraisal/v2/attest",
+        ).strip()
+        ita_api_key = os.environ.get("INTEL_TRUST_AUTHORITY_API_KEY", "").strip()
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        if ita_api_key:
+            headers["x-api-key"] = ita_api_key
+        intel_resp = httpx.post(
+            ita_url,
             json={"quote": quote_b64},
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+            headers=headers,
             timeout=10,
         )
         if intel_resp.status_code == 200:
@@ -394,11 +403,16 @@ def verify_tdx_quote(certificate: dict) -> dict:
             # Non-200 — quote may be invalid, or API may require an API key
             body_text = intel_resp.text[:300]
             result["intel_verified"] = False
+            auth_hint = (
+                " No INTEL_TRUST_AUTHORITY_API_KEY was configured."
+                if not ita_api_key else
+                ""
+            )
             result["intel_details"] = (
                 f"Intel Trust Authority returned HTTP {intel_resp.status_code}. "
                 f"This may indicate the quote is from a simulated enclave "
-                f"(not real TDX hardware), or the API requires authentication. "
-                f"Response: {body_text}"
+                f"(not real TDX hardware), or the API rejected the request."
+                f"{auth_hint} Response: {body_text}"
             )
     except Exception as e:
         # Network error or httpx not available — not a failure, just unavailable

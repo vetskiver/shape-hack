@@ -1,7 +1,7 @@
 """
 Props L3 — Pinned Model Layer (Props paper, section 3.2 / section 2.2)
 =======================================================================
-A small LLM (Llama 3.2 3B via Ollama) runs inside the TDX enclave and
+A small LLM (current default: `llama3.2:1b` via Ollama) runs inside the TDX enclave and
 extracts four credential facts from the raw oracle record.
 
 WHY AN LLM (NOT REGEX):
@@ -225,11 +225,31 @@ def get_model_info() -> dict:
                 raise RuntimeError(f"Cannot reach Ollama after 3 attempts: {e}")
     data = resp.json()
 
-    # Ollama /api/show returns the manifest digest as a top-level "digest" field
-    # e.g. "sha256:a6990ed6be41..." — this is the canonical model identifier
+    # Best case: /api/show returns a top-level digest.
     digest = data.get("digest", "")
 
-    # Fallback: some Ollama versions put it in details.parent_model
+    # Some Ollama versions omit the top-level digest from /api/show but still
+    # expose it through model listings. Fall back to the official list endpoints.
+    if not digest:
+        for endpoint, key in (("/api/tags", "models"), ("/api/ps", "models")):
+            try:
+                listing_resp = httpx.get(f"{OLLAMA_BASE_URL}{endpoint}", timeout=15.0)
+                listing_resp.raise_for_status()
+                for model in listing_resp.json().get(key, []):
+                    model_names = {
+                        model.get("name", ""),
+                        model.get("model", ""),
+                    }
+                    if MODEL_NAME in model_names:
+                        digest = model.get("digest", "")
+                        if digest:
+                            break
+                if digest:
+                    break
+            except Exception as listing_err:
+                print(f"[extractor] WARNING: {endpoint} digest lookup failed: {listing_err}")
+
+    # Older responses sometimes only expose a parent model reference.
     if not digest:
         digest = data.get("details", {}).get("parent_model", "")
 
@@ -435,8 +455,10 @@ def extract_credential_facts(raw_credential: dict, oracle_type: str = "medical_b
         for key in credential_fields:
             direct_result.setdefault(key, None)
 
-        # Try to get model info for the certificate (non-blocking)
-        model_info = _safe_get_model_info()
+        # Props L3 still requires the real model digest even on the direct path.
+        # The extraction may be deterministic, but the attestation should not
+        # silently degrade to "unavailable" just because we skipped the LLM call.
+        model_info = get_model_info()
 
         return {
             "extracted_facts": direct_result,
@@ -473,7 +495,7 @@ def extract_credential_facts(raw_credential: dict, oracle_type: str = "medical_b
             else:
                 partial[field] = None
 
-        model_info = _safe_get_model_info()
+        model_info = get_model_info()
 
         return {
             "extracted_facts": partial,

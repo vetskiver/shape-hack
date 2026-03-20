@@ -1,0 +1,30 @@
+# Backend Task Completion
+
+- Implemented:
+  - backend readiness includes an explicit `on_chain` check
+  - backend readiness now also includes an explicit `hardware_attestation` check
+  - production-style verify readiness is blocked when `CONTRACT_ADDRESS` or `PRIVATE_KEY` is missing
+  - production-style verify readiness is blocked when the runtime cannot derive an enclave key and generate a TDX quote through dstack
+- Files changed: `app/main.py`, `tests/test_readiness.py`
+- Validation performed:
+  - `./.venv311/bin/python -m py_compile app/main.py tests/test_readiness.py`
+  - `./.venv311/bin/pytest tests/test_readiness.py -v` → 7 passed
+  - Focused FastAPI/TestClient path check covering:
+    - `_evaluate_onchain_readiness()` returning `missing_config`
+    - `_evaluate_hardware_readiness()` returning `simulated`
+    - `GET /api/info` exposing both readiness failures
+    - `POST /api/verify` returning HTTP 503 with both blocking issues present
+- Exact backend conditions for real judging-critical success:
+  - On-chain available:
+    - `CONTRACT_ADDRESS` must be set
+    - `PRIVATE_KEY` must be set
+    - runtime must successfully submit the transaction to the configured chain RPC
+  - `trust_level=hardware` on `GET /api/verify/{certificate_id}`:
+    - certificate must be issued with `in_real_enclave=True`
+    - certificate must contain a real `tdx_quote`
+    - current code computes `hardware` when `in_real_enclave` is true and `verify_tdx_quote(...).present` is true
+- Remaining blocker to real on-chain + hardware trust:
+  - runtime must be a real Phala/dstack-backed TDX environment with working dstack key + quote support
+  - `CONTRACT_ADDRESS` and `PRIVATE_KEY` must be configured in the deployed runtime
+  - chain RPC connectivity and wallet funding must be good enough for the on-chain write to succeed
+  - none of those conditions can be satisfied from this local worktree alone
