@@ -1721,15 +1721,13 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Attestia trust stack</span>
-      <span class="layer-summary-copy">This certificate already reflects the authenticated source, enclave processing, model provenance, and redaction filter.</span>
+      <span class="layer-label">What this certificate proves</span>
+      <span class="layer-summary-copy">Source checked, identity filtered, and output signed inside the enclave.</span>
     </summary>
     <div class="layer-pill-list">
-      <span class="layer-pill on">L2 — TEE: computation happened inside Phala Cloud TDX</span>
-      <span class="layer-pill on">L3 — Pinned model: model hash in attestation block below</span>
-      <span class="layer-pill on">L4 — Redaction: stripped fields shown here, applied in enclave</span>
-      <span class="layer-pill on">L1 — Oracle: data fetched from authoritative NYSED registry</span>
-      <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
+      <span class="layer-pill on">L2 — TEE: certificate issued inside Phala Cloud TDX</span>
+      <span class="layer-pill on">L3 — Model provenance: digest is bound below</span>
+      <span class="layer-pill on">L4 — Redaction: only consented fields appear here</span>
     </div>
   </details>
 
@@ -1856,20 +1854,18 @@
   <div class="view-header">
     <div class="view-num">Screen 03 — Published article</div>
     <div class="view-title">What real-world usage looks like</div>
-    <div class="view-sub">The expert publishes their article. The Attestia badge carries the verified credential. Any reader can click verify.</div>
+    <div class="view-sub">The article reads normally. The badge carries the proof.</div>
   </div>
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Attestia trust stack</span>
-      <span class="layer-summary-copy">Publish verified expertise without revealing who wrote it.</span>
+      <span class="layer-label">What the published badge carries</span>
+      <span class="layer-summary-copy">Enough proof for a reader, without turning the post into a technical document.</span>
     </summary>
     <div class="layer-pill-list">
-      <span class="layer-pill on">L2 — TEE: attestation badge attached to this article</span>
-      <span class="layer-pill on">L3 — Pinned model: credential provenance auditable by anyone</span>
-      <span class="layer-pill on">L1 — Oracle: data came from real NYSED registry</span>
-      <span class="layer-pill on">L4 — Redaction: identity is nowhere in this article</span>
-      <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
+      <span class="layer-pill on">L2 — TEE: badge links back to a signed certificate</span>
+      <span class="layer-pill on">L1 — Source provenance: facts came from the live registry</span>
+      <span class="layer-pill on">L4 — Privacy: the author identity stays out of the article</span>
     </div>
   </details>
 
@@ -1894,28 +1890,28 @@
   </div>
 
   <div class="article-stage">
-    <div class="article-stage-copy">
-      <div class="article-stage-kicker">Publish with proof attached</div>
-      <div class="article-stage-title">A reader sees the post. The proof stays one click away.</div>
-      <div class="article-stage-text">Your article can travel like any normal link or screenshot, while the badge and verifier page carry the trust signal in the background.</div>
-    </div>
-    <div class="article-stage-actions">
-      <div class="article-stage-kicker">What a reader sees</div>
-      <div class="article-stage-list">
-        <div class="article-stage-item">
-          <strong>Verified facts</strong>
-          <span>The badge shows exactly what was checked, not a vague trust label.</span>
-        </div>
-        <div class="article-stage-item">
-          <strong>One obvious next step</strong>
-          <span>Anyone can open the verifier page and inspect the proof for themselves.</span>
-        </div>
-        <div class="article-stage-item">
-          <strong>Identity stays hidden</strong>
-          <span>The post carries credibility without exposing the author.</span>
+      <div class="article-stage-copy">
+        <div class="article-stage-kicker">Publish with proof attached</div>
+        <div class="article-stage-title">Readers stay with the story until they want proof.</div>
+        <div class="article-stage-text">The post looks normal. The badge is there when someone wants to check the credential behind it.</div>
+      </div>
+      <div class="article-stage-actions">
+        <div class="article-stage-kicker">What a reader sees</div>
+        <div class="article-stage-list">
+          <div class="article-stage-item">
+            <strong>Verified facts</strong>
+            <span>The badge summarizes exactly what was checked.</span>
+          </div>
+          <div class="article-stage-item">
+            <strong>One obvious click</strong>
+            <span>The verifier page opens the full proof trail on demand.</span>
+          </div>
+          <div class="article-stage-item">
+            <strong>No identity leak</strong>
+            <span>The article gains credibility without exposing the author.</span>
+          </div>
         </div>
       </div>
-    </div>
   </div>
 
   <div class="article-card">
@@ -1987,15 +1983,13 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Attestia trust stack</span>
-      <span class="layer-summary-copy">Check the proof, the source, and the on-chain record without revealing identity.</span>
+      <span class="layer-label">What the verifier checks</span>
+      <span class="layer-summary-copy">Verdict first. Audit trail second.</span>
     </summary>
     <div class="layer-pill-list">
-      <span class="layer-pill on">L2 — TEE: signature verified against enclave public key</span>
-      <span class="layer-pill on">L3 — Pinned model: model hash auditable by anyone</span>
-      <span class="layer-pill on">L1 — Oracle: credential came from real NYSED registry</span>
-      <span class="layer-pill on">L4 — Redaction: only consented fields visible here</span>
-      <span class="layer-pill on">L5 — Adversarial defense: architectural, always active</span>
+      <span class="layer-pill on">L2 — Enclave proof: signature verified against the enclave key</span>
+      <span class="layer-pill on">L3 — Model provenance: digest is auditable</span>
+      <span class="layer-pill on">L1 — Source provenance: credential came from the real registry</span>
     </div>
   </details>
 
@@ -2012,25 +2006,25 @@
         <div class="verify-badge-line" id="verify-badge-line">
           <span>⬡</span> Attestia · Attested
         </div>
-        <div class="verify-sub" id="verify-sub">Signature valid · Intel TDX enclave authenticated · Identity not disclosed</div>
+        <div class="verify-sub" id="verify-sub">Signature valid · Intel TDX enclave authenticated · Identity withheld</div>
       </div>
     </div>
 
     <div class="verifier-summary-grid">
       <div class="verifier-summary-card">
         <div class="verifier-summary-kicker">Verdict</div>
-        <div class="verifier-summary-title">This proof is safe to evaluate publicly</div>
-        <div class="verifier-summary-copy">Readers can assess the disclosed facts and the signature status without ever learning who the expert is.</div>
+        <div class="verifier-summary-title">Safe to evaluate publicly</div>
+        <div class="verifier-summary-copy">You can assess the disclosed facts and proof status without learning who the expert is.</div>
       </div>
       <div class="verifier-summary-card">
         <div class="verifier-summary-kicker">What is visible</div>
         <div class="verifier-summary-title">Only consented facts</div>
-        <div class="verifier-summary-copy">Everything below this line is the redacted output that left the enclave. Identity fields were never included.</div>
+        <div class="verifier-summary-copy">Everything below is the redacted output that left the enclave.</div>
       </div>
       <div class="verifier-summary-card">
         <div class="verifier-summary-kicker">How to read this</div>
-        <div class="verifier-summary-title">Trust result first, evidence second</div>
-        <div class="verifier-summary-copy">Start with the verdict, then expand the technical panels only if you want the deeper attestation and on-chain proof trail.</div>
+        <div class="verifier-summary-title">Start with the verdict</div>
+        <div class="verifier-summary-copy">Open the technical panels only if you want the deeper attestation and on-chain trail.</div>
       </div>
     </div>
 
@@ -2047,7 +2041,7 @@
 
     <div class="identity-note">
       <span class="lock-icon">🔒</span>
-      <span>Identity: not disclosed — cannot be recovered by anyone, including the Attestia server operator</span>
+      <span>Identity never appears in this certificate.</span>
     </div>
 
     <details class="detail-panel" open>
@@ -2171,15 +2165,13 @@
 
   <details class="layer-row">
     <summary class="layer-summary">
-      <span class="layer-label">Attestia trust stack</span>
-      <span class="layer-summary-copy">This demo shows how different Attestia layers reject fake sources, forged data, and tampering.</span>
+      <span class="layer-label">Where fake paths fail</span>
+      <span class="layer-summary-copy">Each attack dies at a different layer.</span>
     </summary>
     <div class="layer-pill-list">
       <span class="layer-pill on">L5 — Adversarial defense: live rejection demo on this screen</span>
       <span class="layer-pill on">L1 — Oracle: catches forged + fake registry attacks</span>
       <span class="layer-pill on">L2 — TEE: catches tampered data attacks</span>
-      <span class="layer-pill on">L3 — Pinned model: model hash is tamper-evident</span>
-      <span class="layer-pill on">L4 — Redaction: only oracle-verified fields can exit</span>
     </div>
   </details>
 
@@ -2252,7 +2244,7 @@
 
   <div class="insight">
     <div class="insight-label">L5 — Adversarial defense (Props paper section 2.3)</div>
-    <div class="insight-text">There is no path to a valid Attestia certificate that does not go through the real authoritative source, unmodified, inside the enclave. The fraud fails architecturally. Not because of a filter. Because of the pipeline itself.</div>
+    <div class="insight-text">A valid Attestia certificate only exists if the source was real, the data was unmodified, and the enclave signed the result. Fake paths die before issuance.</div>
   </div>
 </div>
 
